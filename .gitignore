@@ -1,6 +1,8 @@
 # Yolo data for test
 *.pt
 *.mlmodel
+# Local environement
+*env
 # Test results
 test_*
 test_*.jpg

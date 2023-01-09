@@ -1,5 +1,9 @@
+import sys
+import time
 from typing import Dict, Union, Tuple, List, Optional
 import os
+import shlex
+import subprocess
 from concurrent.futures import ThreadPoolExecutor
 import tqdm
 from rtk.utils import download
@@ -13,8 +17,16 @@ class Task:
     def __init__(self,
                  input_files: InputListType,
                  command: Optional[str] = None,
-                 multiprocess: Optional[int] = None
+                 multiprocess: Optional[int] = None,
+                 **options
                  ) -> "Task":
+        """
+
+        :param input_files: Name of the input files
+        :param command: Replace input file by `%`, eg. `wget % > %.txt`
+        :param multiprocess: Number of process to use (default = 1)
+        :param options: Task specific options
+        """
         self._input_files: InputListType = input_files
         self._command: Optional[str] = command
         self._checked_files: Dict[InputType, bool] = {}
@@ -29,6 +41,9 @@ class Task:
             file for file, status in self._checked_files.items()
             if not status
         ]
+        if not len(requires_processing):
+            print("Nothing to process here.")
+            return True
         return self._process(requires_processing)
 
     def _process(self, inputs: InputListType) -> bool:
@@ -91,45 +106,52 @@ class KrakenLikeCommand(Task):
     """ Apply kraken or yaltai command
 
     """
-    @staticmethod
-    def _rename_download(file: InputType) -> str:
-        return os.path.join(file[1], file[0].split("/")[-5] + ".jpg")
+    def __init__(self, *args, output_format: Optional[str] = "xml", desc: Optional[str] = "kraken-like", **kwargs):
+        super(KrakenLikeCommand, self).__init__(*args, **kwargs)
+        self._output_format: str = output_format
+        self.desc: str = desc
 
     @property
     def output_files(self) -> List[InputType]:
         return list([
-            self._rename_download(file)
+            f"{file}.{self._output_format}"
             for file in self._input_files
         ])
 
     def check(self) -> bool:
         all_done: bool = True
-        for file in tqdm.tqdm(self._input_files, desc="Checking prior processed documents"):
-            out_file = self._rename_download(file)
-            if os.path.exists(out_file):
-                self._checked_files[file] = True
+        for inp, out in tqdm.tqdm(
+                zip(self._input_files, self.output_files),
+                desc="Checking prior processed documents",
+                total=len(self._input_files)
+        ):
+            if os.path.exists(out):
+                # ToDo: Check XML or JSON is well-formed
+                self._checked_files[inp] = True
             else:
-                self._checked_files[file] = False
+                self._checked_files[inp] = False
                 all_done = False
         return all_done
 
     def _process(self, inputs: InputListType) -> bool:
-        done = []
-        try:
-            with ThreadPoolExecutor(max_workers=self._workers) as executor:
-                bar = tqdm.tqdm(total=len(inputs), desc="Downloading...")
-                for file in executor.map(download, [
-                    (file[0], self._rename_download(file))
-                    for file in inputs
-                ]):  # urls=[list of url]
-                    bar.update(1)
-                    done.append(file)
-        except KeyboardInterrupt:
-            bar.close()
-            print("Download manually interrupted, removing partial JPGs")
-            for url, directory in inputs:
-                if url not in done:
-                    tgt = self._rename_download((url, directory))
-                    if os.path.exists(tgt):
-                        os.remove(tgt)
-        return True
+        """ Use parallel """
+        def work(sample):
+            proc = subprocess.Popen(
+                self._command.replace("%", sample),
+                shell=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT
+            )
+            proc.wait()
+            if proc.returncode == 1:
+                print("Error detected in subprocess...")
+                print(proc.stderr.read())
+                print("Stopped process")
+                raise InterruptedError
+            return sample
+
+        tp = ThreadPoolExecutor(self._workers)
+        bar = tqdm.tqdm(desc=f"Processing {self.desc} command", total=len(inputs))
+        for _ in tp.map(work, inputs):
+            bar.update(1)
+        bar.close()
