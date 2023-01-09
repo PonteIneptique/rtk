@@ -6,7 +6,7 @@ import shlex
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 import tqdm
-from rtk.utils import download
+from rtk.utils import download, check_content, clean_kraken_filename, check_kraken_filename
 
 
 InputType = Union[str, Tuple[str, str]]
@@ -23,14 +23,14 @@ class Task:
         """
 
         :param input_files: Name of the input files
-        :param command: Replace input file by `%`, eg. `wget % > %.txt`
+        :param command: Replace input file by `$`, eg. `wget $ > $.txt`
         :param multiprocess: Number of process to use (default = 1)
         :param options: Task specific options
         """
-        self._input_files: InputListType = input_files
-        self._command: Optional[str] = command
+        self.input_files: InputListType = input_files
+        self.command: Optional[str] = command
         self._checked_files: Dict[InputType, bool] = {}
-        self._workers: int = multiprocess or 1
+        self.workers: int = multiprocess or 1
 
     def check(self) -> bool:
         raise NotImplementedError
@@ -66,12 +66,12 @@ class DownloadTask(Task):
     def output_files(self) -> List[InputType]:
         return list([
             self._rename_download(file)
-            for file in self._input_files
+            for file in self.input_files
         ])
 
     def check(self) -> bool:
         all_done: bool = True
-        for file in tqdm.tqdm(self._input_files, desc="Checking prior processed documents"):
+        for file in tqdm.tqdm(self.input_files, desc="Checking prior processed documents"):
             out_file = self._rename_download(file)
             if os.path.exists(out_file):
                 self._checked_files[file] = True
@@ -83,7 +83,7 @@ class DownloadTask(Task):
     def _process(self, inputs: InputListType) -> bool:
         done = []
         try:
-            with ThreadPoolExecutor(max_workers=self._workers) as executor:
+            with ThreadPoolExecutor(max_workers=self.workers) as executor:
                 bar = tqdm.tqdm(total=len(inputs), desc="Downloading...")
                 for file in executor.map(download, [
                     (file[0], self._rename_download(file))
@@ -105,29 +105,42 @@ class DownloadTask(Task):
 class KrakenLikeCommand(Task):
     """ Apply kraken or yaltai command
 
+    KrakenLikeCommand expect `$out` in its command
     """
-    def __init__(self, *args, output_format: Optional[str] = "xml", desc: Optional[str] = "kraken-like", **kwargs):
+    def __init__(
+            self,
+            *args,
+            output_format: Optional[str] = "xml",
+            desc: Optional[str] = "kraken-like",
+            check_content: bool = False,
+            **kwargs):
         super(KrakenLikeCommand, self).__init__(*args, **kwargs)
         self._output_format: str = output_format
+        self.check_content: bool = check_content
         self.desc: str = desc
+        if "$out" not in self.command:
+            raise NameError("$out is missing in the Kraken-like command")
+
+    def rename(self, inp):
+        return os.path.splitext(inp)[0] + "." + self._output_format
 
     @property
     def output_files(self) -> List[InputType]:
         return list([
-            f"{file}.{self._output_format}"
-            for file in self._input_files
+            self.rename(file)
+            for file in self.input_files
         ])
 
     def check(self) -> bool:
         all_done: bool = True
         for inp, out in tqdm.tqdm(
-                zip(self._input_files, self.output_files),
+                zip(self.input_files, self.output_files),
                 desc="Checking prior processed documents",
-                total=len(self._input_files)
+                total=len(self.input_files)
         ):
             if os.path.exists(out):
                 # ToDo: Check XML or JSON is well-formed
-                self._checked_files[inp] = True
+                self._checked_files[inp] = check_content(out) if self.check_content else True
             else:
                 self._checked_files[inp] = False
                 all_done = False
@@ -137,9 +150,11 @@ class KrakenLikeCommand(Task):
         """ Use parallel """
         def work(sample):
             proc = subprocess.Popen(
-                self._command.replace("%", sample),
+                self.command
+                    .replace("$out", self.rename(sample))
+                    .replace("$", sample),
                 shell=True,
-                stdout=subprocess.DEVNULL,
+                #stdout=subprocess.DEVNULL,
                 stderr=subprocess.STDOUT
             )
             proc.wait()
@@ -150,8 +165,36 @@ class KrakenLikeCommand(Task):
                 raise InterruptedError
             return sample
 
-        tp = ThreadPoolExecutor(self._workers)
+        tp = ThreadPoolExecutor(self.workers)
         bar = tqdm.tqdm(desc=f"Processing {self.desc} command", total=len(inputs))
         for _ in tp.map(work, inputs):
             bar.update(1)
         bar.close()
+
+
+class CleanUpCommand(Task):
+    """ Executes a single function on a specific file
+    """
+    @property
+    def output_files(self) -> List[InputType]:
+        return self.input_files
+
+    def check(self) -> bool:
+        all_done: bool = True
+        for inp in tqdm.tqdm(self.input_files, desc="Checking prior processed documents", total=len(self.input_files)):
+            if os.path.exists(inp):
+                # ToDo: Check XML or JSON is well-formed
+                self._checked_files[inp] = check_kraken_filename(inp)
+            else:
+                self._checked_files[inp] = False
+                all_done = False
+        return all_done
+
+    def _process(self, inputs: InputListType) -> bool:
+        done = []
+        with ThreadPoolExecutor(max_workers=self.workers) as executor:
+            bar = tqdm.tqdm(total=len(inputs), desc="Cleaning...")
+            for file in executor.map(clean_kraken_filename, inputs):  # urls=[list of url]
+                bar.update(1)
+                done.append(file)
+        return True
