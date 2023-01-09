@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, List
 import requests
 import os
 import hashlib
@@ -12,6 +12,7 @@ def download(param: Tuple[str, str]) -> str:
     response = requests.get(url, headers={
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
                        "Chrome/51.0.2704.103 Safari/537.36"})
+    response.raise_for_status()
     with open(target, 'wb') as handle:
         handle.write(response.content)
     return url
@@ -23,7 +24,7 @@ def download_iiif_manifest(param: Tuple[str, str]) -> str:
     response = requests.get(url, headers={
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
                        "Chrome/51.0.2704.103 Safari/537.36"})
-
+    response.raise_for_status()
     j = response.json()
     rows = []
     dirname = os.path.splitext(os.path.basename(output_file))[0]
@@ -109,3 +110,32 @@ def get_name_before_manifest_json(url):
 def string_to_hash(url: str) -> str:
     result = hashlib.sha256(url.encode())
     return result.digest().decode()
+
+
+def alto_zone_extraction(filepath: str, zones: List[str]):
+    """ Retrieves only given zone types in filepath
+
+    :param filepath:
+    :param zones:
+    :return: Agglutinated Lines
+
+    >>> alto_zone_extraction("../test_dir/AEV_3090_1870_Goms_Ausserbinn_010.xml", ["Col"])
+    """
+    try:
+        xml = ET.parse(filepath)
+    except Exception:
+        return False
+    ns = dict(namespaces={"a": "http://www.loc.gov/standards/alto/ns-v4#"})
+    # <OtherTag ID="TYPE_35" LABEL="Adresse"/>
+    allowed_tags = [
+        str(otherTag.attrib["ID"])
+        for otherTag in xml.xpath("//a:OtherTag", **ns)
+        if str(otherTag.attrib["LABEL"]) in zones
+    ]
+    out_text = []
+    for zone in xml.xpath("//a:TextBlock", **ns):
+        if str(zone.attrib.get("TAGREFS")) in allowed_tags:
+            for line in zone.xpath(".//a:TextLine", **ns):
+                out_text.append(" ".join([string for string in line.xpath("./a:String/@CONTENT", **ns)]))
+
+    return "\n".join(out_text)

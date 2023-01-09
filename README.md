@@ -7,9 +7,19 @@ space usage low (with some clean up function).
 
 It provides few main classes which can be used together (see [`simple_text.py`](simple_test.py)).
 
+This is currently not perfectly optimized: technically, CPU/Network bound tasks such as downloading task could have
+callbacks to run GPU tasks before they are completely done...
+
+## Installation
+
+If you want run the script locally, run `pip install -r requirements.txt`.
+
+If you want to run the demo files, run `quickyaltaiinstall.sh`. Models are in the early alpha release.
+
 ## Example file
 
-See [`simple_text.py`](simple_test.py)
+See [`simple_text.py`](simple_test.py) which uses manifests and keeps the xml, check [`simple_file_test.py`](simple_file_test.py)
+which downloads files and strip the XML at the end by filtering the zone of the lines.
 
 It takes a file with a list of manifests to download from IIIF (See manifests.txt) and passes it in a suit of commands:
 

@@ -57,7 +57,9 @@ class Task:
 
 
 class DownloadIIIFImageTask(Task):
-    """ Download task takes a first input string (URI) and a second one (Directory)
+    """ Downloads IIIF images
+
+    Downloads an image and takes a first input string (URI) and a second one (Directory) [Optional]
 
     """
     def __init__(
@@ -128,7 +130,9 @@ class DownloadIIIFImageTask(Task):
 
 
 class DownloadIIIFManifestTask(Task):
-    """ Download task takes a first input string (URI)
+    """ Downloads IIIF manifests
+
+    Download task takes a first input string (URI)
 
     :param manifest_as_directory: Boolean that uses the manifest filename (can be a function) as a directory container
     """
@@ -185,7 +189,7 @@ class DownloadIIIFManifestTask(Task):
 
 
 class KrakenLikeCommand(Task):
-    """ Apply kraken or yaltai command
+    """ Runs a Kraken Like command (Kraken, YALTAi)
 
     KrakenLikeCommand expect `$out` in its command
     """
@@ -255,7 +259,9 @@ class KrakenLikeCommand(Task):
 
 
 class KrakenAltoCleanUpCommand(Task):
-    """ Executes a single function on a specific file
+    """ Clean-up Kraken Serialization
+
+    The Kraken output serialization is not compatible with its input serialization
     """
     @property
     def output_files(self) -> List[InputType]:
@@ -284,6 +290,9 @@ class KrakenAltoCleanUpCommand(Task):
 
 
 class ClearFileCommand(Task):
+    """ Remove files when they have been processed, useful for JPG
+
+    """
     @property
     def output_files(self) -> List[InputType]:
         return []
@@ -302,5 +311,47 @@ class ClearFileCommand(Task):
         with ThreadPoolExecutor(max_workers=self.workers) as executor:
             bar = tqdm.tqdm(total=len(inputs), desc=_sbmsg("Cleaning..."))
             for file in executor.map(os.remove, inputs):  # urls=[list of url]
+                bar.update(1)
+        return True
+
+
+class ExtractZoneAltoCommand(Task):
+    """ This command takes an ALTO input and transforms it into a .txt file, only keeping the provided Zones.
+    """
+    def __init__(
+            self,
+            *args,
+            zones: List[str],
+            **kwargs):
+        super(ExtractZoneAltoCommand, self).__init__(*args, **kwargs)
+        self.zones = zones
+
+    def rename(self, inp):
+        return os.path.splitext(inp)[0] + ".txt"
+
+    @property
+    def output_files(self) -> List[InputType]:
+        return list([self.rename(file) for file in self.input_files])
+
+    def check(self) -> bool:
+        all_done: bool = True
+        for file in tqdm.tqdm(self.input_files, desc=_sbmsg("Checking prior processed documents")):
+            if os.path.exists(self.rename(file)):
+                self._checked_files[file] = True
+            else:
+                self._checked_files[file] = False
+                all_done = False
+        return all_done
+
+    def _process(self, inputs: InputListType) -> bool:
+        def custom_alto_zone_extraction(input_file):
+            content = utils.alto_zone_extraction(input_file, self.zones)
+            if content:
+                with open(self.rename(input_file), "w") as f:
+                    f.write(content)
+
+        with ThreadPoolExecutor(max_workers=self.workers) as executor:
+            bar = tqdm.tqdm(total=len(inputs), desc=_sbmsg("Cleaning..."))
+            for file in executor.map(custom_alto_zone_extraction, inputs):  # urls=[list of url]
                 bar.update(1)
         return True

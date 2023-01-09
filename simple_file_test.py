@@ -13,25 +13,16 @@ The batch file should be lower if you want to keep the space used low, specifica
 
 """
 from rtk.task import DownloadIIIFImageTask, KrakenLikeCommand, KrakenAltoCleanUpCommand, ClearFileCommand, \
-    DownloadIIIFManifestTask
+    ExtractZoneAltoCommand
 from rtk import utils
 
-batches = utils.batchify_textfile("manifests.txt", batch_size=2)
+batches = utils.batchify_textfile("simple_mss_test.txt", batch_size=2)
 
 for batch in batches:
-    # Download Manifests
-    print("[Task] Download manifests")
-    dl = DownloadIIIFManifestTask(
-        batch,
-        output_directory="test_manifests",
-        naming_function=lambda x: "test_"+x.split("/")[-2], multiprocess=10
-    )
-    dl.process()
-
     # Download Files
     print("[Task] Download JPG")
     dl = DownloadIIIFImageTask(
-        dl.output_files,
+        [(b, "test_mss_dir") for b in batch],
         multiprocess=4,
         completion_check=DownloadIIIFImageTask.check_downstream_task("xml", utils.check_content)
     )
@@ -67,3 +58,7 @@ for batch in batches:
 
     print("[Task] Remove images")
     cf = ClearFileCommand(dl.output_files, multiprocess=4).process()
+
+    print("[Task] Get text file")
+    plaintxt = ExtractZoneAltoCommand(kraken.output_files, zones=["MainZone"])
+    plaintxt.process()
