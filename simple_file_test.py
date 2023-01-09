@@ -24,7 +24,7 @@ for batch in batches:
     dl = DownloadIIIFImageTask(
         [(b, "test_mss_dir") for b in batch],
         multiprocess=4,
-        completion_check=DownloadIIIFImageTask.check_downstream_task("xml", utils.check_content)
+        downstream_check=DownloadIIIFImageTask.check_downstream_task("xml", utils.check_content)
     )
     dl.process()
 

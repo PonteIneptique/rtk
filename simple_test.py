@@ -33,7 +33,7 @@ for batch in batches:
     dl = DownloadIIIFImageTask(
         dl.output_files,
         multiprocess=4,
-        completion_check=DownloadIIIFImageTask.check_downstream_task("xml", utils.check_content)
+        downstream_check=DownloadIIIFImageTask.check_downstream_task("xml", utils.check_content)
     )
     dl.process()
 

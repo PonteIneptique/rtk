@@ -99,7 +99,7 @@ class DownloadIIIFImageTask(Task):
             if os.path.exists(out_file):
                 self._checked_files[file] = True
             elif self.downstream_check is not None:  # Additional downstream check
-                self._checked_files[file] = self.downstream_check(out_file)
+                self._checked_files[file] = self.downstream_check(file)
                 if not self._checked_files[file]:
                     all_done = False
             else:
