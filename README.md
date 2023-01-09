@@ -7,3 +7,31 @@ space usage low (with some clean up function).
 
 It provides few main classes which can be used together (see [`simple_text.py`](simple_test.py)).
 
+## Example file
+
+See [`simple_text.py`](simple_test.py)
+
+It takes a file with a list of manifests to download from IIIF (See manifests.txt) and passes it in a suit of commands:
+
+0. It downloads manifests and transform them into CSV files
+1. It downloads images from the manifests
+2. It applies YALTAi segmentation with line segmentation
+3. It fixes up the image PATH of XML files
+4. It processes the text as well through Kraken
+5. It removes the image files (from the one hunder object that were meant to be done in group)
+
+The batch file should be lower if you want to keep the space used low, specifically if you use DownloadIIIFManifest.
+
+## Providing a new `Task`
+
+A Task is defined by three main functions and one main property. See `Task` in [`rtk.task.py`](rtk/task.py).
+
+- [Property] `._checked_files` is a **private** property which is used to pass information about items which were 
+processed. Its keys are the input values of the `Task`, their associated value is a boolean indicating if this was 
+processed. *It should not be accessed externally !*
+- [Method] `.check()` returns a boolean indicating if everything was treated or not. `.check()` has the responsability
+to fill boolean values of `._checked_files`
+- [Method] `._process(inputs)` treats the inputs files (like downloading, parsing, annotating)
+- [PropertyMethod] `@property .output_files` provides a list with all items which needs to be passed to the next Task
+
+Task can have custom parameters, check [`rtk.task.py`](rtk/task.py)

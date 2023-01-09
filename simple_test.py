@@ -1,8 +1,9 @@
 """ This is a sample script for using RTK (Release the krakens)
 
-It takes a file with a list of images to download from IIIF (See test.txt) and passes it in a suit of commands:
+It takes a file with a list of manifests to download from IIIF (See manifests.txt) and passes it in a suit of commands:
 
-1. It downloads them
+0. It downloads manifests and transform them into CSV files
+1. It downloads images from the manifests
 2. It applies YALTAi segmentation with line segmentation
 3. It fixes up the image PATH of XML files
 4. It processes the text as well through Kraken
@@ -11,16 +12,26 @@ It takes a file with a list of images to download from IIIF (See test.txt) and p
 The batch file should be lower if you want to keep the space used low, specifically if you use DownloadIIIFManifest.
 
 """
-from rtk.task import DownloadIIIFImageTask, KrakenLikeCommand, KrakenAltoCleanUp, ClearFileCommand
+from rtk.task import DownloadIIIFImageTask, KrakenLikeCommand, KrakenAltoCleanUpCommand, ClearFileCommand, \
+    DownloadIIIFManifestTask
 from rtk import utils
 
-batches = utils.batchify_textfile("test.txt", batch_size=100)
+batches = utils.batchify_textfile("manifests.txt", batch_size=2)
 
 for batch in batches:
+    # Download Manifests
+    print("[Task] Download manifests")
+    dl = DownloadIIIFManifestTask(
+        batch,
+        output_directory="test_manifests",
+        naming_function=lambda x: "test_"+x.split("/")[-2], multiprocess=10
+    )
+    dl.process()
+
     # Download Files
     print("[Task] Download JPG")
     dl = DownloadIIIFImageTask(
-        [(f, "test_dir/") for f in batch],
+        dl.output_files,
         multiprocess=4,
         completion_check=DownloadIIIFImageTask.check_downstream_task("xml", utils.check_content)
     )
@@ -41,7 +52,7 @@ for batch in batches:
 
     # Clean-up the relative filepath of Kraken Serialization
     print("[Task] Clean-Up Serialization")
-    cleanup = KrakenAltoCleanUp(yaltai.output_files)
+    cleanup = KrakenAltoCleanUpCommand(yaltai.output_files)
     cleanup.process()
 
     # Apply Kraken

@@ -3,8 +3,8 @@ import os
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 import tqdm
-from rtk.utils import download, check_content, clean_kraken_filename, check_kraken_filename
-
+from rtk import utils
+import csv
 
 InputType = Union[str, Tuple[str, str]]
 InputListType = Union[List[str], List[Tuple[str, str]]]
@@ -21,7 +21,7 @@ class Task:
                  command: Optional[str] = None,
                  multiprocess: Optional[int] = None,
                  **options
-                 ) -> "Task":
+                 ):
         """
 
         :param input_files: Name of the input files
@@ -110,7 +110,7 @@ class DownloadIIIFImageTask(Task):
         try:
             with ThreadPoolExecutor(max_workers=self.workers) as executor:
                 bar = tqdm.tqdm(total=len(inputs), desc=_sbmsg("Downloading..."))
-                for file in executor.map(download, [
+                for file in executor.map(utils.download, [
                     (file[0], self.rename_download(file))
                     for file in inputs
                 ]):  # urls=[list of url]
@@ -124,6 +124,63 @@ class DownloadIIIFImageTask(Task):
                     tgt = self.rename_download((url, directory))
                     if os.path.exists(tgt):
                         os.remove(tgt)
+        return True
+
+
+class DownloadIIIFManifestTask(Task):
+    """ Download task takes a first input string (URI)
+
+    :param manifest_as_directory: Boolean that uses the manifest filename (can be a function) as a directory container
+    """
+    def __init__(
+            self,
+            *args,
+            naming_function: Optional[Callable[[str], str]] = None,
+            output_directory: Optional[str] = None,
+            **kwargs):
+        super(DownloadIIIFManifestTask, self).__init__(*args, **kwargs)
+        self.naming_function = naming_function or utils.string_to_hash
+        self.output_directory = output_directory or "."
+
+    def rename_download(self, file: InputType) -> str:
+        return os.path.join(self.output_directory, utils.change_ext(self.naming_function(file), "csv"))
+
+    @property
+    def output_files(self) -> List[InputType]:
+        """ Unlike the others, one input file = more output files
+
+        We read inputfile transformed to get the output files (CSV files: FILE + Directory)
+        """
+        out = []
+        for file in self.input_files:
+            dl_file = self.rename_download(file)
+            if os.path.exists(dl_file):
+                with open(dl_file) as f:
+                    files = list([tuple(row) for row in csv.reader(f)])
+                out.extend(files)
+        return out
+
+    def check(self) -> bool:
+        all_done: bool = True
+        for file in tqdm.tqdm(self.input_files, desc=_sbmsg("Checking prior processed documents")):
+            out_file = self.rename_download(file)
+            if os.path.exists(out_file):
+                self._checked_files[file] = True
+            else:
+                self._checked_files[file] = False
+                all_done = False
+        return all_done
+
+    def _process(self, inputs: InputListType) -> bool:
+        done = []
+        with ThreadPoolExecutor(max_workers=self.workers) as executor:
+            bar = tqdm.tqdm(total=len(inputs), desc=_sbmsg("Downloading..."))
+            for file in executor.map(utils.download_iiif_manifest, [
+                (file, self.rename_download(file))
+                for file in inputs
+            ]):  # urls=[list of url]
+                bar.update(1)
+                done.append(file)
         return True
 
 
@@ -165,7 +222,7 @@ class KrakenLikeCommand(Task):
         ):
             if os.path.exists(out):
                 # ToDo: Check XML or JSON is well-formed
-                self._checked_files[inp] = check_content(out) if self.check_content else True
+                self._checked_files[inp] = utils.check_content(out) if self.check_content else True
             else:
                 self._checked_files[inp] = False
                 all_done = False
@@ -197,7 +254,7 @@ class KrakenLikeCommand(Task):
         bar.close()
 
 
-class KrakenAltoCleanUp(Task):
+class KrakenAltoCleanUpCommand(Task):
     """ Executes a single function on a specific file
     """
     @property
@@ -206,11 +263,11 @@ class KrakenAltoCleanUp(Task):
 
     def check(self) -> bool:
         all_done: bool = True
-        for inp in tqdm.tqdm(self.input_files, desc=_sbmsg("Checking prior processed documents")
-                , total=len(self.input_files)):
+        for inp in tqdm.tqdm(
+                self.input_files, desc=_sbmsg("Checking prior processed documents"), total=len(self.input_files)):
             if os.path.exists(inp):
                 # ToDo: Check XML or JSON is well-formed
-                self._checked_files[inp] = check_kraken_filename(inp)
+                self._checked_files[inp] = utils.check_kraken_filename(inp)
             else:
                 self._checked_files[inp] = False
                 all_done = False
@@ -220,7 +277,7 @@ class KrakenAltoCleanUp(Task):
         done = []
         with ThreadPoolExecutor(max_workers=self.workers) as executor:
             bar = tqdm.tqdm(total=len(inputs), desc=_sbmsg("Cleaning..."))
-            for file in executor.map(clean_kraken_filename, inputs):  # urls=[list of url]
+            for file in executor.map(utils.clean_kraken_filename, inputs):  # urls=[list of url]
                 bar.update(1)
                 done.append(file)
         return True

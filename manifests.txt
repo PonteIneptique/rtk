@@ -1,0 +1,5 @@
+https://gallica.bnf.fr/iiif/ark:/12148/btv1b9058183s/manifest.json
+https://gallica.bnf.fr/iiif/ark:/12148/btv1b9058891r/manifest.json
+https://gallica.bnf.fr/iiif/ark:/12148/btv1b90600941/manifest.json
+https://gallica.bnf.fr/iiif/ark:/12148/btv1b52514362j/manifest.json
+https://gallica.bnf.fr/iiif/ark:/12148/btv1b90601825/manifest.json
