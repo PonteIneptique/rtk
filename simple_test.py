@@ -1,4 +1,5 @@
-from rtk.task import DownloadTask, KrakenLikeCommand, CleanUpCommand
+from rtk.task import DownloadTask, KrakenLikeCommand, KrakenAltoCleanUp, ClearFileCommand
+from rtk import utils
 
 
 with open("test.txt") as f:
@@ -10,7 +11,11 @@ batches = [text[n:n+batch_size] for n in range(0, len(text), batch_size)]
 for batch in batches:
     # Download Files
     print("[Task] Download JPG")
-    dl = DownloadTask([(f, "test_dir/") for f in batch], multiprocess=4)
+    dl = DownloadTask(
+        [(f, "test_dir/") for f in batch],
+        multiprocess=4,
+        completion_check=DownloadTask.check_downstream_task("xml", utils.check_content)
+    )
     dl.process()
 
     # Apply YALTAi
@@ -28,7 +33,7 @@ for batch in batches:
 
     # Clean-up the relative filepath of Kraken Serialization
     print("[Task] Clean-Up Serialization")
-    cleanup = CleanUpCommand(yaltai.output_files)
+    cleanup = KrakenAltoCleanUp(yaltai.output_files)
     cleanup.process()
 
     # Apply Kraken
@@ -44,3 +49,4 @@ for batch in batches:
     kraken.process()
 
     print("[Task] Remove images")
+    cf = ClearFileCommand(dl.output_files, multiprocess=4).process()
