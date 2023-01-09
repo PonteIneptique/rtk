@@ -58,3 +58,15 @@ def check_kraken_filename(filepath):
     except Exception:
         return False
     return True
+
+
+def batchify_textfile(filepath: str, batch_size: int = 100):
+    """ Reads a list of file to process and batch them
+
+    :param filepath:
+    :param batch_size:
+    :return:
+    """
+    with open(filepath) as f:
+        text = f.read().split()
+    return [text[n:n+batch_size] for n in range(0, len(text), batch_size)]

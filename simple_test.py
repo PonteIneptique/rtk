@@ -1,20 +1,28 @@
-from rtk.task import DownloadTask, KrakenLikeCommand, KrakenAltoCleanUp, ClearFileCommand
+""" This is a sample script for using RTK (Release the krakens)
+
+It takes a file with a list of images to download from IIIF (See test.txt) and passes it in a suit of commands:
+
+1. It downloads them
+2. It applies YALTAi segmentation with line segmentation
+3. It fixes up the image PATH of XML files
+4. It processes the text as well through Kraken
+5. It removes the image files (from the one hunder object that were meant to be done in group)
+
+The batch file should be lower if you want to keep the space used low, specifically if you use DownloadIIIFManifest.
+
+"""
+from rtk.task import DownloadIIIFImageTask, KrakenLikeCommand, KrakenAltoCleanUp, ClearFileCommand
 from rtk import utils
 
-
-with open("test.txt") as f:
-    text = f.read().split()
-
-batch_size = 10
-batches = [text[n:n+batch_size] for n in range(0, len(text), batch_size)]
+batches = utils.batchify_textfile("test.txt", batch_size=100)
 
 for batch in batches:
     # Download Files
     print("[Task] Download JPG")
-    dl = DownloadTask(
+    dl = DownloadIIIFImageTask(
         [(f, "test_dir/") for f in batch],
         multiprocess=4,
-        completion_check=DownloadTask.check_downstream_task("xml", utils.check_content)
+        completion_check=DownloadIIIFImageTask.check_downstream_task("xml", utils.check_content)
     )
     dl.process()
 

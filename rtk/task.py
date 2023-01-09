@@ -56,7 +56,7 @@ class Task:
         raise NotImplementedError
 
 
-class DownloadTask(Task):
+class DownloadIIIFImageTask(Task):
     """ Download task takes a first input string (URI) and a second one (Directory)
 
     """
@@ -65,7 +65,7 @@ class DownloadTask(Task):
             *args,
             downstream_check: DownstreamCheck = None,
             **kwargs):
-        super(DownloadTask, self).__init__(*args, **kwargs)
+        super(DownloadIIIFImageTask, self).__init__(*args, **kwargs)
         self.downstream_check = downstream_check
 
     @staticmethod
@@ -75,7 +75,7 @@ class DownloadTask(Task):
     @staticmethod
     def check_downstream_task(extension: str = ".xml", content_check: DownstreamCheck = None) -> Callable:
         def check(inp):
-            filename = os.path.splitext(DownloadTask.rename_download(inp))[0] + extension
+            filename = os.path.splitext(DownloadIIIFImageTask.rename_download(inp))[0] + extension
             if not os.path.exists(filename):
                 return False
             if content_check is not None:
