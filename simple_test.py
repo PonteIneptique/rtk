@@ -9,10 +9,12 @@ batches = [text[n:n+batch_size] for n in range(0, len(text), batch_size)]
 
 for batch in batches:
     # Download Files
+    print("[Task] Download JPG")
     dl = DownloadTask([(f, "test_dir/") for f in batch], multiprocess=4)
     dl.process()
 
     # Apply YALTAi
+    print("[Task] Segment")
     yaltai = KrakenLikeCommand(
         dl.output_files,
         command="yaltaienv/bin/yaltai kraken -i $ $out --device cuda:0 "
@@ -25,10 +27,12 @@ for batch in batches:
     yaltai.process()
 
     # Clean-up the relative filepath of Kraken Serialization
+    print("[Task] Clean-Up Serialization")
     cleanup = CleanUpCommand(yaltai.output_files)
     cleanup.process()
 
     # Apply Kraken
+    print("[Task] OCR")
     kraken = KrakenLikeCommand(
         yaltai.output_files,
         command="krakenv/bin/kraken -i $ $out --device cuda:0 -f xml --alto "
@@ -38,3 +42,5 @@ for batch in batches:
         check_content=True
     )
     kraken.process()
+
+    print("[Task] Remove images")

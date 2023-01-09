@@ -154,7 +154,7 @@ class KrakenLikeCommand(Task):
                     .replace("$out", self.rename(sample))
                     .replace("$", sample),
                 shell=True,
-                #stdout=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
                 stderr=subprocess.STDOUT
             )
             proc.wait()
