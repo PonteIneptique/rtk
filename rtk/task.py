@@ -1,6 +1,7 @@
 from typing import Dict, Union, Tuple, List, Optional, Callable
 import os
 import subprocess
+import io
 from concurrent.futures import ThreadPoolExecutor
 import tqdm
 from rtk import utils
@@ -198,11 +199,14 @@ class KrakenLikeCommand(Task):
             *args,
             output_format: Optional[str] = "xml",
             desc: Optional[str] = "kraken-like",
+            allow_failure: bool = True,
             check_content: bool = False,
             **kwargs):
         super(KrakenLikeCommand, self).__init__(*args, **kwargs)
         self._output_format: str = output_format
         self.check_content: bool = check_content
+        self.allow_failure: bool = allow_failure
+        self._output_files: List[str] = []
         self.desc: str = desc
         if "$out" not in self.command:
             raise NameError("$out is missing in the Kraken-like command")
@@ -214,22 +218,23 @@ class KrakenLikeCommand(Task):
     def output_files(self) -> List[InputType]:
         return list([
             self.rename(file)
-            for file in self.input_files
+            for file in self._output_files
         ])
 
     def check(self) -> bool:
         all_done: bool = True
-        for inp, out in tqdm.tqdm(
-                zip(self.input_files, self.output_files),
+        for inp in tqdm.tqdm(
+                self.input_files,
                 desc=_sbmsg("Checking prior processed documents"),
                 total=len(self.input_files)
         ):
+            out = self.rename(inp)
             if os.path.exists(out):
-                # ToDo: Check XML or JSON is well-formed
                 self._checked_files[inp] = utils.check_content(out) if self.check_content else True
             else:
                 self._checked_files[inp] = False
                 all_done = False
+        self._output_files.extend([inp for inp, status in self._checked_files.items() if status])
         return all_done
 
     def _process(self, inputs: InputListType) -> bool:
@@ -240,20 +245,25 @@ class KrakenLikeCommand(Task):
                     .replace("$out", self.rename(sample))
                     .replace("$", sample),
                 shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
             )
             proc.wait()
             if proc.returncode == 1:
                 print("Error detected in subprocess...")
-                print(proc.stderr.read())
+                print(proc.stdout.read().decode())
+                print(proc.stderr.read().decode())
                 print("Stopped process")
-                raise InterruptedError
+                if not self.allow_failure:
+                    raise InterruptedError
+                return None
             return sample
 
         tp = ThreadPoolExecutor(self.workers)
         bar = tqdm.tqdm(desc=_sbmsg(f"Processing {self.desc} command"), total=len(inputs))
-        for _ in tp.map(work, inputs):
+        for fname in tp.map(work, inputs):
+            if fname is not None:
+                self._output_files.append(fname)
             bar.update(1)
         bar.close()
 
@@ -263,6 +273,7 @@ class KrakenAltoCleanUpCommand(Task):
 
     The Kraken output serialization is not compatible with its input serialization
     """
+
     @property
     def output_files(self) -> List[InputType]:
         return self.input_files
