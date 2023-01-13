@@ -12,8 +12,8 @@ InputListType = Union[List[str], List[Tuple[str, str]]]
 DownstreamCheck = Optional[Callable[[InputType], bool]]
 
 
-def _sbmsg(msg) -> None:
-    print(f"\t[Subtask] {msg}")
+def _sbmsg(msg) -> str:
+    return f"\t[Subtask] {msg}"
 
 
 class Task:
@@ -70,6 +70,7 @@ class DownloadIIIFImageTask(Task):
             **kwargs):
         super(DownloadIIIFImageTask, self).__init__(*args, **kwargs)
         self.downstream_check = downstream_check
+        self._output_files = []
 
     @staticmethod
     def rename_download(file: InputType) -> str:
@@ -90,7 +91,7 @@ class DownloadIIIFImageTask(Task):
     def output_files(self) -> List[InputType]:
         return list([
             self.rename_download(file)
-            for file in self.input_files
+            for file in self._output_files
         ])
 
     def check(self) -> bool:
@@ -99,6 +100,7 @@ class DownloadIIIFImageTask(Task):
             out_file = self.rename_download(file)
             if os.path.exists(out_file):
                 self._checked_files[file] = True
+                self._output_files.append(file)
             elif self.downstream_check is not None:  # Additional downstream check
                 self._checked_files[file] = self.downstream_check(file)
                 if not self._checked_files[file]:
@@ -118,7 +120,8 @@ class DownloadIIIFImageTask(Task):
                     for file in inputs
                 ]):  # urls=[list of url]
                     bar.update(1)
-                    done.append(file)
+                    if file:
+                        done.append(file)
         except KeyboardInterrupt:
             bar.close()
             print("Download manually interrupted, removing partial JPGs")
@@ -127,6 +130,7 @@ class DownloadIIIFImageTask(Task):
                     tgt = self.rename_download((url, directory))
                     if os.path.exists(tgt):
                         os.remove(tgt)
+        self._output_files.extend(done)
         return True
 
 

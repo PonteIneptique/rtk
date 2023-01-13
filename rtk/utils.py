@@ -12,10 +12,14 @@ def download(param: Tuple[str, str]) -> str:
     response = requests.get(url, headers={
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
                        "Chrome/51.0.2704.103 Safari/537.36"})
-    response.raise_for_status()
-    with open(target, 'wb') as handle:
-        handle.write(response.content)
-    return url
+    try:
+        response.raise_for_status()
+        with open(target, 'wb') as handle:
+            handle.write(response.content)
+        return url, target
+    except Exception as E:
+        print(E)
+        return None
 
 
 def download_iiif_manifest(param: Tuple[str, str]) -> str:
