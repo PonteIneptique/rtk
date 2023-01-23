@@ -89,10 +89,7 @@ class DownloadIIIFImageTask(Task):
 
     @property
     def output_files(self) -> List[InputType]:
-        return list([
-            self.rename_download(file)
-            for file in self._output_files
-        ])
+        return self._output_files
 
     def check(self) -> bool:
         all_done: bool = True
@@ -100,7 +97,7 @@ class DownloadIIIFImageTask(Task):
             out_file = self.rename_download(file)
             if os.path.exists(out_file):
                 self._checked_files[file] = True
-                self._output_files.append(file)
+                self._output_files.append(out_file)
             elif self.downstream_check is not None:  # Additional downstream check
                 self._checked_files[file] = self.downstream_check(file)
                 if not self._checked_files[file]:

@@ -1,4 +1,4 @@
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 import requests
 import os
 import hashlib
@@ -16,7 +16,7 @@ def download(param: Tuple[str, str]) -> str:
         response.raise_for_status()
         with open(target, 'wb') as handle:
             handle.write(response.content)
-        return url, target
+        return target
     except Exception as E:
         print(E)
         return None
@@ -97,6 +97,7 @@ def batchify_textfile(filepath: str, batch_size: int = 100):
     :param filepath:
     :param batch_size:
     :return:
+
     """
     with open(filepath) as f:
         text = f.read().split()
