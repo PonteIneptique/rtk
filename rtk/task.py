@@ -71,10 +71,16 @@ class DownloadIIIFImageTask(Task):
             self,
             *args,
             downstream_check: DownstreamCheck = None,
+            max_height: Optional[int] = None,
+            max_width: Optional[int] = None,
             **kwargs):
         super(DownloadIIIFImageTask, self).__init__(*args, **kwargs)
         self.downstream_check = downstream_check
         self._output_files = []
+        self._max_h: int = max_height
+        self._max_w: int = max_width
+        if self._max_h and self._max_w:
+            raise Exception("Only one parameter max height / max width is accepted")
 
     @staticmethod
     def rename_download(file: InputType) -> str:
@@ -113,11 +119,16 @@ class DownloadIIIFImageTask(Task):
 
     def _process(self, inputs: InputListType) -> bool:
         done = []
+        options = {}
+        if self._max_h:
+            options["max_height"] = self._max_h
+        if self._max_w:
+            options["max_width"] = self._max_w
         try:
             with ThreadPoolExecutor(max_workers=self.workers) as executor:
                 bar = tqdm.tqdm(total=len(inputs), desc=_sbmsg("Downloading..."))
-                for file in executor.map(utils.download, [
-                    (file[0], self.rename_download(file))
+                for file in executor.map(utils.download_iiif_image, [
+                    (file[0], self.rename_download(file), options)
                     for file in inputs
                 ]):  # urls=[list of url]
                     bar.update(1)

@@ -32,6 +32,7 @@ for batch in batches:
     print("[Task] Download JPG")
     dl = DownloadIIIFImageTask(
         dl.output_files,
+        max_height=2500,
         multiprocess=4,
         downstream_check=DownloadIIIFImageTask.check_downstream_task("xml", utils.check_content)
     )

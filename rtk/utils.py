@@ -1,5 +1,5 @@
 # Std lib
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, Dict, Any
 import os
 import hashlib
 import csv
@@ -24,6 +24,15 @@ def download(param: Tuple[str, str]) -> str:
     except Exception as E:
         print(E)
         return None
+
+
+def download_iiif_image(params: Tuple[str, str, Dict[str, Any]]) -> str:
+    url, target, options = params
+    if options.get("max_height"):
+        url = url.replace("/full/full/", f"/full/,{options['max_height']}/")
+    elif options.get("max_width"):
+        url = url.replace("/full/full/", f"/full/{options['max_width']},/")
+    return download((url, target))
 
 
 def download_iiif_manifest(param: Tuple[str, str]) -> str:
