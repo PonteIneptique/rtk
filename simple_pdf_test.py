@@ -12,26 +12,43 @@ It takes a file with a list of manifests to download from IIIF (See manifests.tx
 The batch file should be lower if you want to keep the space used low, specifically if you use DownloadIIIFManifest.
 
 """
-from rtk.task import DownloadIIIFImageTask, KrakenLikeCommand, KrakenAltoCleanUpCommand, ClearFileCommand, \
-    ExtractZoneAltoCommand
+from rtk.task import DownloadGallicaPDF, ExtractPDFTask, KrakenLikeCommand, KrakenAltoCleanUpCommand, ClearFileCommand, \
+    DownloadIIIFManifestTask
 from rtk import utils
 
-batches = utils.batchify_textfile("simple_mss_test.txt", batch_size=2)
+batches = utils.batchify_textfile("manifests.txt", batch_size=2)
 
 for batch in batches:
-    # Download Files
+    # Download Manifests
+    print("[Task] Download manifests")
+    manifests = DownloadIIIFManifestTask(
+        batch,
+        output_directory="test_manifests",
+        naming_function=lambda x: "test_"+x.split("/")[-2], multiprocess=10
+    )
+    manifests.process()
+
+    # Download PDF
     print("[Task] Download JPG")
-    dl = DownloadIIIFImageTask(
-        [(b, "test_mss_dir") for b in batch],
-        multiprocess=4,
-        downstream_check=DownloadIIIFImageTask.check_downstream_task("xml", utils.check_content)
+    dl = DownloadGallicaPDF(
+        batch,
+        manifest_task=manifests,
+        multiprocess=4
     )
     dl.process()
+
+    # Extract images !
+    print("[Task] Download PDF")
+    extr = ExtractPDFTask(
+        dl.output_files,
+        multiprocess=2
+    )
+    extr.process()
 
     # Apply YALTAi
     print("[Task] Segment")
     yaltai = KrakenLikeCommand(
-        dl.output_files,
+        extr.output_files,
         command="yaltaienv/bin/yaltai kraken -i $ $out --device cuda:0 "
                 "segment -y GallicorporaSegmentation.pt ",
         multiprocess=4,  # GPU Memory // 5gb
@@ -39,6 +56,7 @@ for batch in batches:
     )
     yaltai.process()
 
+    raise Exception
     # Clean-up the relative filepath of Kraken Serialization
     print("[Task] Clean-Up Serialization")
     cleanup = KrakenAltoCleanUpCommand(yaltai.output_files)
@@ -56,10 +74,5 @@ for batch in batches:
     )
     kraken.process()
 
-    print("[Task] Remove images")
-    cf = ClearFileCommand(dl.output_files, multiprocess=4).process()
-
-    print("[Task] Get text file")
-    plaintxt = ExtractZoneAltoCommand(kraken.output_files, zones=["MainZone"])
-    plaintxt.process()
-
+    #print("[Task] Remove images")
+    #cf = ClearFileCommand(dl.output_files, multiprocess=4).process()

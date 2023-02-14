@@ -1,8 +1,12 @@
+# Std lib
 from typing import Tuple, List, Optional
-import requests
 import os
 import hashlib
 import csv
+from pathlib import Path
+# Non std lib
+import pyvips
+import requests
 import lxml.etree as ET
 
 
@@ -144,3 +148,37 @@ def alto_zone_extraction(filepath: str, zones: List[str]):
                 out_text.append(" ".join([string for string in line.xpath("./a:String/@CONTENT", **ns)]))
 
     return "\n".join(out_text)
+
+
+def pdf_extract(pdf_path: str, start_on: int = 2):
+    """ Given a PDF file, generates a new folder with all extracted images
+
+    Code adapted from Kraken 4.3.1
+
+    :param pdf_path:
+    :param start_on: Page to start on (Default is 2 because Gallica adds generated metadata)
+    :return:
+    """
+    n_pages = pdf_get_nb_pages(pdf_path)
+    scheme = pdf_name_scheme(pdf_path)
+    os.makedirs(Path(scheme).parent, exist_ok=True)
+    scheme = str(scheme)
+    for i in range(start_on, n_pages):
+        doc = pyvips.Image.new_from_file(pdf_path, dpi=300, page=i, access="sequential")
+        local_targ = scheme.format(i)
+        doc.write_to_file(local_targ)
+        yield local_targ
+
+
+def pdf_name_scheme(pdf_path: str) -> str:
+    path = Path(pdf_path)
+    target = Path(os.path.join(path.parent, path.stem))
+    os.makedirs(target, exist_ok=True)
+    return str(Path.joinpath(target, "f{}.jpg"))
+
+
+def pdf_get_nb_pages(pdf_path: str) -> int:
+    doc = pyvips.Image.new_from_file(pdf_path, dpi=300, n=-1, access="sequential")
+    if 'n-pages' not in doc.get_fields():
+        raise Exception("No page count in the PDF")
+    return doc.get('n-pages')
