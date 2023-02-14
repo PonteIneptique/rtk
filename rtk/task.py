@@ -168,11 +168,10 @@ class ExtractPDFTask(Task):
 
     def _process(self, inputs: InputListType) -> bool:
         tp = ThreadPoolExecutor(self.workers)
-        bar = tqdm.tqdm(desc=_sbmsg(f"Processing {self.desc} command"), total=len(inputs))
+        bar = tqdm.tqdm(desc=_sbmsg(f"Extract PDF images command"), total=len(inputs))
         # ToDo: Do not extract page we already have
         for fname in tp.map(utils.pdf_extract, inputs):
-            if fname is not None:
-                self._output_files.append(fname)
+            self._output_files.append(fname)
             bar.update(1)
         bar.close()
         return True
@@ -199,7 +198,7 @@ class DownloadGallicaPDF(Task):
             output_directory: Optional[str] = None,
             **kwargs):
         super(DownloadGallicaPDF, self).__init__(*args, **kwargs)
-        self.manifest_task: DownloadIIIFManifestTask = manifest_task
+        self.length_dict: Dict[str, int] = manifest_task.get_output_length_dict()
         self.naming_function = naming_function or self.ark
         self.output_directory = output_directory or "."
         self._output_files: List[InputType] = []
@@ -233,7 +232,7 @@ class DownloadGallicaPDF(Task):
         man, targ, length = manifest_and_target_and_length
         ark = DownloadGallicaPDF.ark(man)
         resp = requests.get(DownloadGallicaPDF.SCHEME_ADDRESS.format(
-            ark=length,
+            ark=ark,
             length=length
         ))
         with open(targ, "wb") as f:
@@ -256,7 +255,7 @@ class DownloadGallicaPDF(Task):
         with ThreadPoolExecutor(max_workers=self.workers) as executor:
             bar = tqdm.tqdm(total=len(inputs), desc=_sbmsg("Downloading..."))
             for file in executor.map(self.download_pdf, [
-                (file, self.rename_download(file))
+                (file, self.rename_download(file), self.length_dict[file])
                 for file in inputs
             ]):  # urls=[list of url]
                 bar.update(1)
@@ -294,7 +293,7 @@ class DownloadIIIFManifestTask(Task):
             dl_file = self.rename_download(file)
             if os.path.exists(dl_file):
                 with open(dl_file) as f:
-                    out[dl_file] = len(list([0 for _ in csv.reader(f)]))
+                    out[file] = len(list([0 for _ in csv.reader(f)]))
         return out
 
     @property

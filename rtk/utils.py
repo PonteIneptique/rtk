@@ -163,11 +163,13 @@ def pdf_extract(pdf_path: str, start_on: int = 2):
     scheme = pdf_name_scheme(pdf_path)
     os.makedirs(Path(scheme).parent, exist_ok=True)
     scheme = str(scheme)
+    out = []
     for i in range(start_on, n_pages):
         doc = pyvips.Image.new_from_file(pdf_path, dpi=300, page=i, access="sequential")
         local_targ = scheme.format(i)
         doc.write_to_file(local_targ)
-        yield local_targ
+        out.append(str(local_targ))
+    return out
 
 
 def pdf_name_scheme(pdf_path: str) -> str:

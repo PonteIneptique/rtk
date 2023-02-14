@@ -23,8 +23,8 @@ for batch in batches:
     print("[Task] Download manifests")
     manifests = DownloadIIIFManifestTask(
         batch,
-        output_directory="test_manifests",
-        naming_function=lambda x: "test_"+x.split("/")[-2], multiprocess=10
+        output_directory="test_pdf",
+        naming_function=lambda x: x.split("/")[-2], multiprocess=10
     )
     manifests.process()
 
@@ -32,6 +32,7 @@ for batch in batches:
     print("[Task] Download JPG")
     dl = DownloadGallicaPDF(
         batch,
+        output_directory="test_pdf",
         manifest_task=manifests,
         multiprocess=4
     )
