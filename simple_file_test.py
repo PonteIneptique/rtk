@@ -62,3 +62,4 @@ for batch in batches:
     print("[Task] Get text file")
     plaintxt = ExtractZoneAltoCommand(kraken.output_files, zones=["MainZone"])
     plaintxt.process()
+

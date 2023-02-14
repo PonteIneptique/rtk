@@ -1,6 +1,8 @@
 # Yolo data for test
 *.pt
 *.mlmodel
+*~*
+*.tar.gz
 # Local environement
 *env
 # Test results

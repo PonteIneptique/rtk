@@ -1,11 +1,15 @@
-from typing import Dict, Union, Tuple, List, Optional, Callable
 import os
 import subprocess
-import io
-from concurrent.futures import ThreadPoolExecutor
-import tqdm
-from rtk import utils
 import csv
+from typing import Dict, Union, Tuple, List, Optional, Callable
+from concurrent.futures import ThreadPoolExecutor
+import re
+# Non Std Lib
+import requests
+import tqdm
+# Local
+from rtk import utils
+
 
 InputType = Union[str, Tuple[str, str]]
 InputListType = Union[List[str], List[Tuple[str, str]]]
@@ -67,10 +71,16 @@ class DownloadIIIFImageTask(Task):
             self,
             *args,
             downstream_check: DownstreamCheck = None,
+            max_height: Optional[int] = None,
+            max_width: Optional[int] = None,
             **kwargs):
         super(DownloadIIIFImageTask, self).__init__(*args, **kwargs)
         self.downstream_check = downstream_check
         self._output_files = []
+        self._max_h: int = max_height
+        self._max_w: int = max_width
+        if self._max_h and self._max_w:
+            raise Exception("Only one parameter max height / max width is accepted")
 
     @staticmethod
     def rename_download(file: InputType) -> str:
@@ -109,11 +119,16 @@ class DownloadIIIFImageTask(Task):
 
     def _process(self, inputs: InputListType) -> bool:
         done = []
+        options = {}
+        if self._max_h:
+            options["max_height"] = self._max_h
+        if self._max_w:
+            options["max_width"] = self._max_w
         try:
             with ThreadPoolExecutor(max_workers=self.workers) as executor:
                 bar = tqdm.tqdm(total=len(inputs), desc=_sbmsg("Downloading..."))
-                for file in executor.map(utils.download, [
-                    (file[0], self.rename_download(file))
+                for file in executor.map(utils.download_iiif_image, [
+                    (file[0], self.rename_download(file), options)
                     for file in inputs
                 ]):  # urls=[list of url]
                     bar.update(1)
@@ -128,6 +143,134 @@ class DownloadIIIFImageTask(Task):
                     if os.path.exists(tgt):
                         os.remove(tgt)
         self._output_files.extend(done)
+        return True
+
+
+class ExtractPDFTask(Task):
+    def __init__(
+            self,
+            *args,
+            **kwargs):
+        super(ExtractPDFTask, self).__init__(*args, **kwargs)
+        self._output_files: List[str] = []
+
+    def check(self) -> bool:
+        all_done: bool = True
+        for inp in tqdm.tqdm(
+                self.input_files,
+                desc=_sbmsg("Checking prior processed documents"),
+                total=len(self.input_files)
+        ):
+            pdf_nb_pages = utils.pdf_get_nb_pages(inp)
+            scheme = utils.pdf_name_scheme(inp)
+            for page in range(pdf_nb_pages):
+                out = scheme.format(page)
+                if os.path.exists(out):
+                    self._checked_files[inp] = True
+                else:
+                    self._checked_files[inp] = False
+                    all_done = False
+        self._output_files.extend([inp for inp, status in self._checked_files.items() if status])
+        return all_done
+
+    @property
+    def output_files(self) -> List[InputType]:
+        return self._output_files
+
+    def _process(self, inputs: InputListType) -> bool:
+        tp = ThreadPoolExecutor(self.workers)
+        bar = tqdm.tqdm(desc=_sbmsg(f"Extract PDF images command"), total=len(inputs))
+        # ToDo: Do not extract page we already have
+        for fname in tp.map(utils.pdf_extract, inputs):
+            self._output_files.append(fname)
+            bar.update(1)
+        bar.close()
+        return True
+
+
+class DownloadGallicaPDF(Task):
+    """ Downloads Gallica PDF after a manifest has been downloaded
+
+    This does use manifest URIs and is specific to Gallica.
+
+    As of early january 2023, Gallica closed or heavily reduced
+
+    :param manifest_as_directory: Boolean that uses the manifest filename (can be a function) as a directory container
+    """
+
+    SCHEME_ADDRESS = "https://gallica.bnf.fr/ark:/12148/{ark}/f1n{length}.pdf"
+    GET_ARK = re.compile(r"ark:\/\w+/(\w+)")
+
+    def __init__(
+            self,
+            *args,
+            manifest_task: "DownloadIIIFManifestTask",
+            naming_function: Optional[Callable[[str], str]] = None,
+            output_directory: Optional[str] = None,
+            **kwargs):
+        super(DownloadGallicaPDF, self).__init__(*args, **kwargs)
+        self.length_dict: Dict[str, int] = manifest_task.get_output_length_dict()
+        self.naming_function = naming_function or self.ark
+        self.output_directory = output_directory or "."
+        self._output_files: List[InputType] = []
+
+    @staticmethod
+    def ark(manifest_uri: str) -> str:
+        """ Get the ark last id
+
+        :param manifest_uri:
+        :return:
+
+        >>> DownloadGallicaPDF.ark("https://gallica.bnf.fr/iiif/ark:/12148/btv1b90601825/manifest.json")
+        'btv1b90601825'
+        """
+        return DownloadGallicaPDF.GET_ARK.findall(manifest_uri)[0]
+
+    def rename_download(self, file: InputType) -> str:
+        return os.path.join(
+            self.output_directory,
+            utils.change_ext(self.naming_function(file), "pdf")
+        )
+
+    @property
+    def output_files(self) -> List[InputType]:
+        """ Returns the PDF path for each input
+        """
+        return self._output_files
+
+    @staticmethod
+    def download_pdf(manifest_and_target_and_length: Tuple[str, str, int]) -> str:
+        man, targ, length = manifest_and_target_and_length
+        ark = DownloadGallicaPDF.ark(man)
+        resp = requests.get(DownloadGallicaPDF.SCHEME_ADDRESS.format(
+            ark=ark,
+            length=length
+        ))
+        with open(targ, "wb") as f:
+            f.write(resp.content)
+        return targ
+
+    def check(self) -> bool:
+        all_done: bool = True
+        for file in tqdm.tqdm(self.input_files, desc=_sbmsg("Checking prior processed documents")):
+            out_file = self.rename_download(file)
+            if os.path.exists(out_file):
+                self._checked_files[file] = True
+                self._output_files.append(out_file)
+            else:
+                self._checked_files[file] = False
+                all_done = False
+        return all_done
+
+    def _process(self, inputs: InputListType) -> bool:
+        with ThreadPoolExecutor(max_workers=self.workers) as executor:
+            bar = tqdm.tqdm(total=len(inputs), desc=_sbmsg("Downloading..."))
+            for file in executor.map(self.download_pdf, [
+                (file, self.rename_download(file), self.length_dict[file])
+                for file in inputs
+            ]):  # urls=[list of url]
+                bar.update(1)
+                self._output_files.append(file)
         return True
 
 
@@ -150,6 +293,19 @@ class DownloadIIIFManifestTask(Task):
 
     def rename_download(self, file: InputType) -> str:
         return os.path.join(self.output_directory, utils.change_ext(self.naming_function(file), "csv"))
+
+    def get_output_length_dict(self) -> Dict[InputType, int]:
+        """ Method to simply access manifest length and not duplicate the method
+
+        :return:
+        """
+        out = {}
+        for file in self.input_files:
+            dl_file = self.rename_download(file)
+            if os.path.exists(dl_file):
+                with open(dl_file) as f:
+                    out[file] = len(list([0 for _ in csv.reader(f)]))
+        return out
 
     @property
     def output_files(self) -> List[InputType]:
