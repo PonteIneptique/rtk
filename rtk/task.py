@@ -342,7 +342,8 @@ class DownloadIIIFManifestTask(Task):
                 for file in inputs
             ]):  # urls=[list of url]
                 bar.update(1)
-                done.append(file)
+                if file:  # Ensure we downloaded the file
+                    done.append(file)
         return True
 
 
