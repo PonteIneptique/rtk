@@ -1,5 +1,5 @@
 # Std lib
-from typing import Tuple, List, Optional, Dict, Union
+from typing import Tuple, List, Optional, Dict, Union, Any
 import os
 import hashlib
 import csv
@@ -83,8 +83,10 @@ def download_iiif_manifest(url: str, target: str, options: Optional[Dict[str, st
         for element in j["items"]:
             rows.append([element["items"][0]["items"][0]["body"]["id"], dirname])
     elif "sequences" in j:
-        for element in j["sequences"][0]["canvases"]:
-            rows.append([element["images"][0]["resource"]["@id"], dirname])
+        for canvas in j["sequences"][0]["canvases"]:
+            elm = cleverer_manifest_parsing(canvas["images"][0])
+            if elm:
+                rows.append([elm, dirname])
 
     with open(target, 'w') as handle:
         writer = csv.writer(handle)
@@ -267,3 +269,44 @@ def simple_args_kwargs_wrapper(function, **kwargs):
             return function(*args, **kwargs)
         return function(args, **kwargs)
     return wrapped
+
+
+def cleverer_manifest_parsing(image: Dict[str, Any], head_check: bool = False) -> Optional[str]:
+    """ More robust parsing of manifests that should handle most implementation of IIIF. Takes an image dict and
+        returns a URL (None if could not be resolved)
+
+    Original source and Copyright: https://github.com/ecoto/iiif_downloader/blob/master/iiif_downloader.py
+
+    :param image:
+    :param head_check: Runs a HEAD request on the image to check for extension (Defaults to NONE and JPG)
+    :return:
+    """
+    if 'resource' in image and (('format' in image['resource'] and 'image' in image['resource']['format']) or
+                                ('@type' in image['resource'] and image['resource']['@type'] == 'dctypes:Image')):
+        if 'service' in image['resource']:
+            # check the context for the API version
+            if '@context' in image['resource']['service'] and '/1/' in image['resource']['service']['@context']:
+                # attempt to retrieve files named 'native' if API v1.1 is used
+                image_url = image['resource']['service']['@id'] + '/full/full/0/native'
+            else:
+                # attempt to retrieve files named 'default' otherwise
+                image_url = image['resource']['service']['@id'] + '/full/full/0/default'
+            # avoid an (occasionally) incorrect double // when building the URL
+            image_url = image_url.replace('//full', '/full')
+            # check if image can be downloaded without specifying the format...
+            if head_check:
+                head_response = requests.head(image_url, allow_redirects=True, verify=True)
+                if head_response.status_code != 200:
+                    # ... try get the format otherwise
+                    response = requests.get(image['resource']['service']['@id'] + '/info.json', allow_redirects=True)
+                    service_document = response.json()
+                    if len(service_document['profile']) > 1:
+                        service_profiles = service_document['profile'][1:]  # 0 is always a compliance URL
+                        if 'formats' in service_profiles[0]:
+                            image_format = service_profiles[0]['formats'][0]  # just use the first format
+                            return image_url + '.' + image_format
+                        return image['resource']['@id']
+                    return image['resource']['@id']
+            return image_url+".jpg"
+        return image['resource']['@id']
+    return None
