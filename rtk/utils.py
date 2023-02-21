@@ -244,3 +244,26 @@ def pdf_get_nb_pages(pdf_path: str) -> int:
     if 'n-pages' not in doc.get_fields():
         raise Exception("No page count in the PDF")
     return doc.get('n-pages')
+
+
+def simple_args_kwargs_wrapper(function, **kwargs):
+    """ Wrap a function with additional kwargs. Convert tuple input as multiple args.
+
+    >>> wrapped_sum = simple_args_kwargs_wrapper(sum)
+    >>> wrapped_sum(([2, 3, 4]))
+    9
+    >>> wrapped_list = simple_args_kwargs_wrapper(list)
+    >>> wrapped_list("abc")
+    ['a', 'b', 'c']
+    >>> wrapped_sort = simple_args_kwargs_wrapper(sorted, key=lambda x: -x)
+    >>> wrapped_sort([1, 2, 3])
+    [3, 2, 1]
+    >>> wrapped_sort = simple_args_kwargs_wrapper(sorted, key=lambda x: -x)
+    >>> wrapped_sort([1, 2, 3])
+    [3, 2, 1]
+    """
+    def wrapped(args):
+        if isinstance(args, tuple):
+            return function(*args, **kwargs)
+        return function(args, **kwargs)
+    return wrapped

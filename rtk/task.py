@@ -73,12 +73,14 @@ class DownloadIIIFImageTask(Task):
             downstream_check: DownstreamCheck = None,
             max_height: Optional[int] = None,
             max_width: Optional[int] = None,
+            custom_headers: Optional[Dict[str, str]] = None,
             **kwargs):
         super(DownloadIIIFImageTask, self).__init__(*args, **kwargs)
         self.downstream_check = downstream_check
         self._output_files = []
         self._max_h: int = max_height
         self._max_w: int = max_width
+        self._custom_headers: Dict[str, str] = custom_headers or {}
         if self._max_h and self._max_w:
             raise Exception("Only one parameter max height / max width is accepted")
 
@@ -119,7 +121,7 @@ class DownloadIIIFImageTask(Task):
 
     def _process(self, inputs: InputListType) -> bool:
         done = []
-        options = {}
+        options = {**self._custom_headers}
         if self._max_h:
             options["max_height"] = self._max_h
         if self._max_w:
@@ -127,10 +129,10 @@ class DownloadIIIFImageTask(Task):
         try:
             with ThreadPoolExecutor(max_workers=self.workers) as executor:
                 bar = tqdm.tqdm(total=len(inputs), desc=_sbmsg("Downloading..."))
-                for file in executor.map(utils.download_iiif_image, [
-                    (file[0], self.rename_download(file), options)
-                    for file in inputs
-                ]):  # urls=[list of url]
+                for file in executor.map(
+                    utils.simple_args_kwargs_wrapper(utils.download_iiif_image, options=options),
+                    [(file[0], self.rename_download(file)) for file in inputs]
+                ):  # urls=[list of url]
                     bar.update(1)
                     if file:
                         done.append(file)
@@ -286,10 +288,12 @@ class DownloadIIIFManifestTask(Task):
             *args,
             naming_function: Optional[Callable[[str], str]] = None,
             output_directory: Optional[str] = None,
+            custom_headers: Optional[Dict[str, str]] = None,
             **kwargs):
         super(DownloadIIIFManifestTask, self).__init__(*args, **kwargs)
         self.naming_function = naming_function or utils.string_to_hash
         self.output_directory = output_directory or "."
+        self._custom_headers: Dict[str, str] = custom_headers or {}
 
     def rename_download(self, file: InputType) -> str:
         return os.path.join(self.output_directory, utils.change_ext(self.naming_function(file), "csv"))
@@ -337,10 +341,9 @@ class DownloadIIIFManifestTask(Task):
         done = []
         with ThreadPoolExecutor(max_workers=self.workers) as executor:
             bar = tqdm.tqdm(total=len(inputs), desc=_sbmsg("Downloading..."))
-            for file in executor.map(utils.download_iiif_manifest, [
-                (file, self.rename_download(file))
-                for file in inputs
-            ]):  # urls=[list of url]
+            for file in executor.map(
+                utils.simple_args_kwargs_wrapper(utils.download_iiif_manifest, options=self._custom_headers),
+                [(file, self.rename_download(file)) for file in inputs]):  # urls=[list of url]
                 bar.update(1)
                 if file:  # Ensure we downloaded the file
                     done.append(file)
