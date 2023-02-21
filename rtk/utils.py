@@ -112,9 +112,9 @@ def check_content(filepath, ratio: Union[int, float] = 1):
     if len(data) == 0:  # The document has no lines
         return True
     elif isinstance(ratio, int):
-        return sum(data) > ratio
+        return sum(data) >= ratio
     elif isinstance(ratio, float):
-        return (sum(data) / (len(data) or 1)) > ratio
+        return (sum(data) / (len(data) or 1)) >= ratio
     return False
 
 
