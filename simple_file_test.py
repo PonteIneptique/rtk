@@ -12,8 +12,8 @@ It takes a file with a list of manifests to download from IIIF (See manifests.tx
 The batch file should be lower if you want to keep the space used low, specifically if you use DownloadIIIFManifest.
 
 """
-from rtk.task import DownloadIIIFImageTask, KrakenLikeCommand, KrakenAltoCleanUpCommand, ClearFileCommand, \
-    ExtractZoneAltoCommand
+from rtk.task import DownloadIIIFImageTask, YALTAiCommand, KrakenRecognizerCommand, KrakenAltoCleanUpCommand,\
+    ClearFileCommand, ExtractZoneAltoCommand
 from rtk import utils
 
 batches = utils.batchify_textfile("simple_mss_test.txt", batch_size=2)
@@ -24,18 +24,20 @@ for batch in batches:
     dl = DownloadIIIFImageTask(
         [(b, "test_mss_dir") for b in batch],
         multiprocess=4,
+        max_height=2500,
         downstream_check=DownloadIIIFImageTask.check_downstream_task("xml", utils.check_content)
     )
     dl.process()
 
     # Apply YALTAi
     print("[Task] Segment")
-    yaltai = KrakenLikeCommand(
+    yaltai = YALTAiCommand(
         dl.output_files,
-        command="yaltaienv/bin/yaltai kraken -i $ $out --device cuda:0 "
-                "segment -y GallicorporaSegmentation.pt ",
+        device="cuda:0",
+        yoloV5_model="GallicorporaSegmentation.pt",
+        binary="yaltaienv/bin/yaltai",
+        allow_failure=False,
         multiprocess=4,  # GPU Memory // 5gb
-        desc="YALTAi"
     )
     yaltai.process()
 
@@ -46,18 +48,17 @@ for batch in batches:
 
     # Apply Kraken
     print("[Task] OCR")
-    kraken = KrakenLikeCommand(
+    kraken = KrakenRecognizerCommand(
         yaltai.output_files,
-        command="krakenv/bin/kraken -i $ $out --device cuda:0 -f xml --alto "
-                "ocr -m cremma-medieval_best.mlmodel",
+        model="cremma-medieval_best.mlmodel",
         multiprocess=4,  # GPU Memory // 3gb
-        desc="Kraken",
+        binary="krakenv/bin/kraken",
         check_content=True
     )
     kraken.process()
 
-    print("[Task] Remove images")
-    cf = ClearFileCommand(dl.output_files, multiprocess=4).process()
+    #print("[Task] Remove images")
+    #cf = ClearFileCommand(dl.output_files, multiprocess=4).process()
 
     print("[Task] Get text file")
     plaintxt = ExtractZoneAltoCommand(kraken.output_files, zones=["MainZone"])

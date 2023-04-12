@@ -12,7 +12,7 @@ It takes a file with a list of manifests to download from IIIF (See manifests.tx
 The batch file should be lower if you want to keep the space used low, specifically if you use DownloadIIIFManifest.
 
 """
-from rtk.task import DownloadIIIFImageTask, KrakenLikeCommand, KrakenAltoCleanUpCommand, ClearFileCommand, \
+from rtk.task import DownloadIIIFImageTask, YALTAiCommand, KrakenRecognizerCommand, KrakenAltoCleanUpCommand, ClearFileCommand, \
     DownloadIIIFManifestTask
 from rtk import utils
 
@@ -40,12 +40,12 @@ for batch in batches:
 
     # Apply YALTAi
     print("[Task] Segment")
-    yaltai = KrakenLikeCommand(
+    yaltai = YALTAiCommand(
         dl.output_files,
-        command="yaltaienv/bin/yaltai kraken -i $ $out --device cuda:0 "
-                "segment -y GallicorporaSegmentation.pt ",
+        device="cuda:0",
+        yoloV5_model="GallicorporaSegmentation.pt",
+        binary="yaltaienv/bin/yaltai",
         multiprocess=4,  # GPU Memory // 5gb
-        desc="YALTAi"
     )
     yaltai.process()
 
@@ -56,12 +56,11 @@ for batch in batches:
 
     # Apply Kraken
     print("[Task] OCR")
-    kraken = KrakenLikeCommand(
+    kraken = KrakenRecognizerCommand(
         yaltai.output_files,
-        command="krakenv/bin/kraken -i $ $out --device cuda:0 -f xml --alto "
-                "ocr -m cremma-medieval_best.mlmodel",
+        model="cremma-medieval_best.mlmodel",
         multiprocess=4,  # GPU Memory // 3gb
-        desc="Kraken",
+        binary="krakenv/bin/kraken",
         check_content=True
     )
     kraken.process()

@@ -1,4 +1,5 @@
 import os
+import pathlib
 import subprocess
 import csv
 from typing import Dict, Union, Tuple, List, Optional, Callable
@@ -410,6 +411,7 @@ class KrakenLikeCommand(Task):
                 stderr=subprocess.PIPE
             )
             proc.wait()
+
             if proc.returncode == 1:
                 print("Error detected in subprocess...")
                 print(proc.stdout.read().decode())
@@ -427,6 +429,75 @@ class KrakenLikeCommand(Task):
                 self._output_files.append(fname)
             bar.update(1)
         bar.close()
+
+
+class YALTAiCommand(KrakenLikeCommand):
+    """ Runs a Kraken recognizer
+
+    KrakenLikeCommand expect `$out` in its command
+    """
+    def __init__(
+            self,
+            *args,
+            yoloV5_model: Union[str, pathlib.Path],
+            line_model: Optional[Union[str, pathlib.Path]] = None,
+            device: str = "cpu",
+            allow_failure: bool = False,
+            check_content: bool = False,
+            binary: str = "yaltai",  # Environment can be env/bin/yaltai
+            **kwargs):
+        if not os.path.exists(yoloV5_model):
+            raise ValueError(f"Unknown YOLOv5 model `{yoloV5_model}`")
+
+        cmd = f"{binary} kraken -i $ $out --device {device} segment -y {yoloV5_model}"
+
+        if line_model:
+            if not os.path.exists(line_model):
+                raise ValueError(f"Unknown YOLOv5 model `{line_model}`")
+            cmd += f" -i {line_model}"
+        else:
+            print("Using default Kraken line segmenter.")
+
+        super(YALTAiCommand, self).__init__(
+            *args,
+            command=cmd,
+            allow_failure=allow_failure,
+            output_format="xml",
+            check_content=check_content,
+            desc="YALTAi segmenter",
+            **kwargs
+        )
+
+
+class KrakenRecognizerCommand(KrakenLikeCommand):
+    """ Runs a Kraken recognizer
+
+    KrakenLikeCommand expect `$out` in its command
+    """
+    def __init__(
+            self,
+            *args,
+            model: Union[str, pathlib.Path],
+            device: str = "cpu",
+            raise_on_error: bool = False,
+            input_format: Optional[str] = "alto",
+            check_content: bool = False,
+            binary: str = "kraken",  # Environment can be env/bin/kraken
+            **kwargs):
+        if not os.path.exists(model):
+            raise ValueError(f"Unknown Kraken model `{model}`")
+        options = ""
+        if raise_on_error:
+            options += " --raise-on-error "
+        super(KrakenRecognizerCommand, self).__init__(
+            *args,
+            command=f"{binary} {options} -i $ $out --device {device} -f xml --{input_format} ocr -m {model}",
+            allow_failure=not raise_on_error,
+            output_format="xml",
+            check_content=check_content,
+            desc="Kraken recognizer",
+            **kwargs
+        )
 
 
 class KrakenAltoCleanUpCommand(Task):
