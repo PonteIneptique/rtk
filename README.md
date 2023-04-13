@@ -18,6 +18,8 @@ If you want to run the demo files, run `quickyaltaiinstall.sh`. Models are in th
 
 ## Example file
 
+See [HowTo](HOWTO.md) for a nice decision tree on how to build your own script.
+
 See [`simple_text.py`](simple_test.py) which uses manifests and keeps the xml, check [`simple_file_test.py`](simple_file_test.py)
 which downloads files and strip the XML at the end by filtering the zone of the lines.
 
