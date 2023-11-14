@@ -2,9 +2,10 @@ import os
 import pathlib
 import subprocess
 import csv
-from typing import Dict, Union, Tuple, List, Optional, Callable
+from typing import Dict, Union, Tuple, List, Optional, Callable, Literal
 from concurrent.futures import ThreadPoolExecutor
 import re
+from xml.sax import saxutils
 # Non Std Lib
 import requests
 import tqdm
@@ -392,7 +393,7 @@ class KrakenLikeCommand(Task):
         ):
             out = self.rename(inp)
             if os.path.exists(out):
-                self._checked_files[inp] = utils.check_content(out) if self.check_content else True
+                self._checked_files[inp] = not self.check_content or utils.check_content(out)
             else:
                 self._checked_files[inp] = False
                 all_done = False
@@ -411,6 +412,9 @@ class KrakenLikeCommand(Task):
                 stderr=subprocess.PIPE
             )
             proc.wait()
+            print("Error detected in subprocess...")
+            print(proc.stdout.read().decode())
+            print(proc.stderr.read().decode())
 
             if proc.returncode == 1:
                 print("Error detected in subprocess...")
@@ -449,7 +453,7 @@ class YALTAiCommand(KrakenLikeCommand):
         if not os.path.exists(yoloV5_model):
             raise ValueError(f"Unknown YOLOv5 model `{yoloV5_model}`")
 
-        cmd = f"{binary} kraken -i $ $out --device {device} segment -y {yoloV5_model}"
+        cmd = f"{binary} kraken {' --verbose ' if kwargs.get('verbose') else ''} {' --raise-on-error ' if kwargs.get('raise-on-error') else ''} -i $ $out --device {device} segment -y {yoloV5_model}"
 
         if line_model:
             if not os.path.exists(line_model):
@@ -564,13 +568,15 @@ class ExtractZoneAltoCommand(Task):
     def __init__(
             self,
             *args,
-            zones: List[str],
+            zones: Optional[List[str]],
+            fmt: Literal["txt", "tei"] = "txt",
             **kwargs):
         super(ExtractZoneAltoCommand, self).__init__(*args, **kwargs)
         self.zones = zones
+        self.fmt = fmt
 
     def rename(self, inp):
-        return os.path.splitext(inp)[0] + ".txt"
+        return os.path.splitext(inp)[0] + "." + self.fmt
 
     @property
     def output_files(self) -> List[InputType]:
@@ -591,7 +597,20 @@ class ExtractZoneAltoCommand(Task):
             content = utils.alto_zone_extraction(input_file, self.zones)
             if content:
                 with open(self.rename(input_file), "w") as f:
-                    f.write(content)
+                    if self.fmt == "txt":
+                        f.write("\n".join([
+                            line
+                            for zone in content
+                            for line in zone["lines"]
+                        ]))
+                    else:
+                        text = "\n"
+                        for zone in content:
+                            text += f"<div type='{zone['type']}'>\n"
+                            for line in zone["lines"]:
+                                text += f"    <seg><lb />{saxutils.escape(line)}</seg>\n"
+                            text += "</div>\n"
+                        f.write(text)
 
         with ThreadPoolExecutor(max_workers=self.workers) as executor:
             bar = tqdm.tqdm(total=len(inputs), desc=_sbmsg("Cleaning..."))

@@ -8,6 +8,7 @@ from pathlib import Path
 import pyvips
 import requests
 import lxml.etree as ET
+from xml.sax.saxutils import escape
 
 
 def download(url: str, target: str, options: Optional[Dict[str, str]] = None) -> Optional[str]:
@@ -183,7 +184,10 @@ def string_to_hash(url: str) -> str:
     return result.digest().decode()
 
 
-def alto_zone_extraction(filepath: str, zones: List[str]):
+def alto_zone_extraction(
+        filepath: str,
+        zones: Optional[List[str]] = None
+) -> Optional[Dict[str, Union[str, List[str]]]]:
     """ Retrieves only given zone types in filepath
 
     :param filepath:
@@ -192,24 +196,41 @@ def alto_zone_extraction(filepath: str, zones: List[str]):
 
     >>> alto_zone_extraction("../test_dir/AEV_3090_1870_Goms_Ausserbinn_010.xml", ["Col"])
     """
+    zones = zones or []
     try:
         xml = ET.parse(filepath)
     except Exception:
-        return False
+        return None
     ns = dict(namespaces={"a": "http://www.loc.gov/standards/alto/ns-v4#"})
     # <OtherTag ID="TYPE_35" LABEL="Adresse"/>
-    allowed_tags = [
-        str(otherTag.attrib["ID"])
+    if zones:
+        allowed_tags = [
+            str(otherTag.attrib["ID"])
+            for otherTag in xml.xpath("//a:OtherTag", **ns)
+            if str(otherTag.attrib["LABEL"]) in zones
+        ]
+    label_map = {
+        str(otherTag.attrib["ID"]): str(otherTag.attrib["LABEL"])
         for otherTag in xml.xpath("//a:OtherTag", **ns)
-        if str(otherTag.attrib["LABEL"]) in zones
-    ]
+    }
+
     out_text = []
     for zone in xml.xpath("//a:TextBlock", **ns):
-        if str(zone.attrib.get("TAGREFS")) in allowed_tags:
+        if zones == [] or str(zone.attrib.get("TAGREFS")) in allowed_tags:
+            out_text.append({
+                "type": label_map.get(str(zone.attrib.get("TAGREFS")), "Undispatched"),
+                "lines": []
+            })
             for line in zone.xpath(".//a:TextLine", **ns):
-                out_text.append(" ".join([string for string in line.xpath("./a:String/@CONTENT", **ns)]))
-
-    return "\n".join(out_text)
+                out_text[-1]["lines"].append(
+                    " ".join(
+                        [
+                            str(string)
+                            for string in line.xpath("./a:String/@CONTENT", **ns)
+                        ]
+                    )
+                )
+    return out_text
 
 
 def pdf_extract(pdf_path: str, start_on: int = 2):
