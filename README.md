@@ -5,7 +5,7 @@ RTK: Release the Krakens
 repositories and on applying a series of annotation (Segmentation with YALTAi, Clean Up, Kraken) while keeping the disk
 space usage low (with some clean up function).
 
-It provides few main classes which can be used together (see [`simple_text.py`](simple_test.py)).
+It provides few main classes which can be used together (see [`example.py`](example.py)).
 
 This is currently not perfectly optimized: technically, CPU/Network bound tasks such as downloading task could have
 callbacks to run GPU tasks before they are completely done...
@@ -20,8 +20,7 @@ If you want to run the demo files, run `quickyaltaiinstall.sh`. Models are in th
 
 See [HowTo](HOWTO.md) for a nice decision tree on how to build your own script.
 
-See [`simple_text.py`](simple_test.py) which uses manifests and keeps the xml, check [`simple_file_test.py`](simple_file_test.py)
-which downloads files and strip the XML at the end by filtering the zone of the lines.
+See [`example.py`](example.py) which uses manifests, keeps the xml and produces TEI files.
 
 It takes a file with a list of manifests to download from IIIF (See manifests.txt) and passes it in a suit of commands:
 

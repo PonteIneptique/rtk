@@ -12,19 +12,29 @@ It takes a file with a list of manifests to download from IIIF (See manifests.tx
 The batch file should be lower if you want to keep the space used low, specifically if you use DownloadIIIFManifest.
 
 """
-from rtk.task import DownloadIIIFImageTask, YALTAiCommand, KrakenRecognizerCommand, KrakenAltoCleanUpCommand, ClearFileCommand, \
-    DownloadIIIFManifestTask
+from rtk.task import DownloadIIIFImageTask, KrakenAltoCleanUpCommand, ClearFileCommand, \
+    DownloadIIIFManifestTask, YALTAiCommand, KrakenRecognizerCommand, ExtractZoneAltoCommand
 from rtk import utils
 
 batches = utils.batchify_textfile("manifests.txt", batch_size=2)
+from re import sub
+
+
+def kebab(s):
+    return sub(r"https?-", "", '-'.join(
+        sub(r"(\W+)"," ",
+        sub(r"[A-Z]{2,}(?=[A-Z][a-z]+[0-9]*|\b)|[A-Z]?[a-z]+[0-9]*|[A-Z]|[0-9]+",
+        lambda mo: ' ' + mo.group(0).lower(), s)).split()
+    ))
+
 
 for batch in batches:
     # Download Manifests
     print("[Task] Download manifests")
     dl = DownloadIIIFManifestTask(
         batch,
-        output_directory="test_manifests",
-        naming_function=lambda x: "test_"+x.split("/")[-2], multiprocess=10
+        output_directory="output",
+        naming_function=lambda x: kebab(x), multiprocess=10
     )
     dl.process()
 
@@ -42,10 +52,14 @@ for batch in batches:
     print("[Task] Segment")
     yaltai = YALTAiCommand(
         dl.output_files,
+        binary="yaltaienv/bin/yaltai",
         device="cuda:0",
         yoloV5_model="GallicorporaSegmentation.pt",
-        binary="yaltaienv/bin/yaltai",
+        verbose=True,
+        raise_on_error=True,
+        allow_failure=False,
         multiprocess=4,  # GPU Memory // 5gb
+        check_content=False
     )
     yaltai.process()
 
@@ -58,12 +72,21 @@ for batch in batches:
     print("[Task] OCR")
     kraken = KrakenRecognizerCommand(
         yaltai.output_files,
-        model="cremma-medieval_best.mlmodel",
-        multiprocess=4,  # GPU Memory // 3gb
-        binary="krakenv/bin/kraken",
-        check_content=True
+        binary="yaltaienv/bin/kraken",
+        device="cpu",
+        model="catmus-medieval.mlmodel",
+        multiprocess=8,  # GPU Memory // 3gb
+        check_content=False
     )
     kraken.process()
 
     print("[Task] Remove images")
-    cf = ClearFileCommand(dl.output_files, multiprocess=4).process()
+    # cf = ClearFileCommand(dl.output_files, multiprocess=4).process()
+
+    print("[Task] Extract")
+    task = ExtractZoneAltoCommand(
+        kraken.output_files,
+        zones=None,
+        fmt="tei"
+    )
+    task.process()

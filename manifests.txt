@@ -1,5 +1,12 @@
-https://gallica.bnf.fr/iiif/ark:/12148/btv1b9058183s/manifest.json
-https://gallica.bnf.fr/iiif/ark:/12148/btv1b9058891r/manifest.json
-https://gallica.bnf.fr/iiif/ark:/12148/btv1b90600941/manifest.json
-https://gallica.bnf.fr/iiif/ark:/12148/btv1b52514362j/manifest.json
-https://gallica.bnf.fr/iiif/ark:/12148/btv1b90601825/manifest.json
+https://gallica.bnf.fr/iiif/ark:/12148/btv1b8446925z/manifest.json
+https://gallica.bnf.fr/iiif/ark:/12148/btv1b84260029/manifest.json
+https://gallica.bnf.fr/iiif/ark:/12148/btv1b107209247/manifest.json
+https://gallica.bnf.fr/iiif/ark:/12148/btv1b84259980/manifest.json
+https://gallica.bnf.fr/iiif/ark:/12148/btv1b90076543/manifest.json
+https://gallica.bnf.fr/iiif/ark:/12148/btv1b9061254h/manifest.json
+https://gallica.bnf.fr/iiif/ark:/12148/btv1b9063234c/manifest.json
+https://gallica.bnf.fr/iiif/ark:/12148/btv1b90639749/manifest.json
+https://gallica.bnf.fr/iiif/ark:/12148/btv1b10073538k/manifest.json
+https://gallica.bnf.fr/iiif/ark:/12148/btv1b90632596/manifest.json
+https://bvmm.irht.cnrs.fr/iiif/413/manifest
+https://www.e-codices.unifr.ch/metadata/iiif/bge-cl0102/manifest.json
