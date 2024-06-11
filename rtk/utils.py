@@ -11,6 +11,28 @@ import lxml.etree as ET
 from xml.sax.saxutils import escape
 
 
+
+def split_batches(inputs: List[str], splits: int) -> List[List[str]]:
+    """ Split a number of inputs into N splits, more or less even ones"""
+    if splits <= 0:
+        raise ValueError("Number of splits must be greater than zero.")
+    
+    # Calculate the base size of each split and the number of splits that need an extra element
+    base_size = len(inputs) // splits
+    extra_elements = len(inputs) % splits
+    
+    result = []
+    start = 0
+    
+    for i in range(splits):
+        end = start + base_size + (1 if i < extra_elements else 0)
+        result.append(inputs[start:end])
+        start = end
+    
+    return result
+
+
+
 def download(url: str, target: str, options: Optional[Dict[str, str]] = None) -> Optional[str]:
     """ Download the element at [URL] and saves it at [TARGET] using binary writing. [OPTIONS] are fed to the headers
 

@@ -11,6 +11,7 @@ import requests
 import tqdm
 # Local
 from rtk import utils
+from itertools import repeat
 
 
 InputType = Union[str, Tuple[str, str]]
@@ -366,13 +367,14 @@ class KrakenLikeCommand(Task):
             check_content: bool = False,
             **kwargs):
         super(KrakenLikeCommand, self).__init__(*args, **kwargs)
+        self.command: List[str] = [x for x in self.command if x]
         self._output_format: str = output_format
         self.check_content: bool = check_content
         self.allow_failure: bool = allow_failure
         self._output_files: List[str] = []
         self.desc: str = desc
-        if "$out" not in self.command:
-            raise NameError("$out is missing in the Kraken-like command")
+        if "R" not in self.command:
+            raise NameError("R is missing in the Kraken-like command (Required for xargs)")
 
     def rename(self, inp):
         return os.path.splitext(inp)[0] + "." + self._output_format
@@ -402,20 +404,32 @@ class KrakenLikeCommand(Task):
 
     def _process(self, inputs: InputListType) -> bool:
         """ Use parallel """
-        def work(sample):
+        def work(input_list: List[str], pbar) -> List[str]:
+            cmd = []
+            for x in self.command:
+                if x != "R":
+                    cmd.append(x)
+                else:
+                    cmd.extend([element for mapped_list in map(self.input_format, input_list) for element in mapped_list])
+
+
             proc = subprocess.Popen(
-                self.command
-                    .replace("$out", self.rename(sample))
-                    .replace("$", sample),
-                shell=True,
+                cmd,
+                # capture_output = True,
+                text = True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
             )
-            proc.wait()
-            print("Error detected in subprocess...")
-            print(proc.stdout.read().decode())
-            print(proc.stderr.read().decode())
 
+            out = []
+
+            for line in iter(proc.stdout.readline, ""):
+                for element in self.pbar_parsing(line):
+                    out.append(element)
+                    pbar.update(1)
+
+            return_code = proc.wait()
+         
             if proc.returncode == 1:
                 print("Error detected in subprocess...")
                 print(proc.stdout.read().decode())
@@ -423,16 +437,25 @@ class KrakenLikeCommand(Task):
                 print("Stopped process")
                 if not self.allow_failure:
                     raise InterruptedError
-                return None
-            return sample
+                return [False]
+            return out
 
-        tp = ThreadPoolExecutor(self.workers)
-        bar = tqdm.tqdm(desc=_sbmsg(f"Processing {self.desc} command"), total=len(inputs))
-        for fname in tp.map(work, inputs):
-            if fname is not None:
-                self._output_files.append(fname)
-            bar.update(1)
+        # Group inputs into the number of workers
+        total_texts = len(inputs)
+        inputs = utils.split_batches(inputs, self.workers)
+
+        tp = ThreadPoolExecutor(len([batches for batches in inputs if len(batches)]))
+        bar = tqdm.tqdm(desc=_sbmsg(f"Processing {self.desc} command"), total=total_texts)
+
+        for gen in tp.map(work, inputs, repeat(bar)):
+            for elem in gen:
+                if isinstance(elem, str):
+                    self._output_files.append(elem)
         bar.close()
+
+    def input_format(self, inp: str) -> List[str]:
+        return ["-i",  inp, self.rename(inp)]
+
 
 
 class YALTAiCommand(KrakenLikeCommand):
@@ -453,12 +476,12 @@ class YALTAiCommand(KrakenLikeCommand):
         if not os.path.exists(yoloV5_model):
             raise ValueError(f"Unknown YOLOv5 model `{yoloV5_model}`")
 
-        cmd = f"{binary} kraken {' --verbose ' if kwargs.get('verbose') else ''} {' --raise-on-error ' if kwargs.get('raise-on-error') else ''} -i $ $out --device {device} segment -y {yoloV5_model}"
+        cmd = f"{binary} kraken {' --verbose ' if kwargs.get('verbose') else ''} {' --raise-on-error ' if kwargs.get('raise-on-error') else ''} --device {device} R segment -y {yoloV5_model}".split(" ")
 
         if line_model:
             if not os.path.exists(line_model):
                 raise ValueError(f"Unknown YOLOv5 model `{line_model}`")
-            cmd += f" -i {line_model}"
+            cmd.extend(f"-i {line_model}".split(" "))
         else:
             print("Using default Kraken line segmenter.")
 
@@ -471,6 +494,10 @@ class YALTAiCommand(KrakenLikeCommand):
             desc="YALTAi segmenter",
             **kwargs
         )
+
+    @staticmethod
+    def pbar_parsing(stdout: str) -> str:
+        return re.findall(r"Serializing as alto into (.+\.xml)\s+kraken_yaltai", stdout)
 
 
 class KrakenRecognizerCommand(KrakenLikeCommand):
@@ -495,13 +522,17 @@ class KrakenRecognizerCommand(KrakenLikeCommand):
             options += " --raise-on-error "
         super(KrakenRecognizerCommand, self).__init__(
             *args,
-            command=f"{binary} {options} -i $ $out --device {device} -f xml --{input_format} ocr -m {model}",
+            command=f"{binary} {options} --device {device} -f xml --{input_format} R ocr -m {model}".split(" "),
             allow_failure=not raise_on_error,
             output_format="xml",
             check_content=check_content,
             desc="Kraken recognizer",
             **kwargs
         )
+
+    @staticmethod
+    def pbar_parsing(stdout: str) -> str:
+        return re.findall(r"Writing recognition results for ([^\t]+\.xml)", stdout)
 
 
 class KrakenAltoCleanUpCommand(Task):
