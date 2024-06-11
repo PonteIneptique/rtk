@@ -412,13 +412,16 @@ class KrakenLikeCommand(Task):
                 else:
                     cmd.extend([element for mapped_list in map(self.input_format, input_list) for element in mapped_list])
 
+            my_env = os.environ.copy()
+            my_env["OMP_NUM_THREADS"] = "1"
 
             proc = subprocess.Popen(
                 cmd,
                 # capture_output = True,
                 text = True,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
+                stderr=subprocess.PIPE,
+                env=my_env
             )
 
             out = []
@@ -432,8 +435,8 @@ class KrakenLikeCommand(Task):
          
             if proc.returncode == 1:
                 print("Error detected in subprocess...")
-                print(proc.stdout.read().decode())
-                print(proc.stderr.read().decode())
+                print(proc.stdout.read())
+                print(proc.stderr.read())
                 print("Stopped process")
                 if not self.allow_failure:
                     raise InterruptedError
