@@ -553,6 +553,46 @@ class KrakenRecognizerCommand(KrakenLikeCommand):
         return re.findall(r"Writing recognition results for ([^\t]+\.xml)", stdout)
 
 
+class KrakenSegAndRecCommand(KrakenLikeCommand):
+    """ Runs a Kraken recognizer
+
+    KrakenLikeCommand expect `$out` in its command
+    """
+    def __init__(
+            self,
+            *args,
+            htr_model: Union[str, pathlib.Path],
+            seg_model: Optional[Union[str, pathlib.Path]] = None,
+            device: str = "cpu",
+            raise_on_error: bool = False,
+            input_format: Optional[str] = "alto",
+            check_content: bool = False,
+            binary: str = "kraken",  # Environment can be env/bin/kraken
+            **kwargs):
+        if not os.path.exists(htr_model):
+            raise ValueError(f"Unknown Kraken model `{htr_model}`")
+        if not os.path.exists(seg_model):
+            raise ValueError(f"Unknown Kraken model `{seg_model}`")
+        
+        options = ""
+        if raise_on_error:
+            options += " --raise-on-error "
+        seg_model = f"-i {seg_model}" if seg_model else "-bl"
+        super(KrakenSegAndRecCommand, self).__init__(
+            *args,
+            command=f"{binary} {options} --device {device} -f image --{input_format} R segment {seg_model} ocr -m {htr_model}".split(" "),
+            allow_failure=not raise_on_error,
+            output_format="xml",
+            check_content=check_content,
+            desc="Kraken recognizer",
+            **kwargs
+        )
+
+    @staticmethod
+    def pbar_parsing(stdout: str) -> str:
+        return re.findall(r"Writing recognition results for ([^\t]+\.xml)", stdout)
+
+
 class KrakenAltoCleanUpCommand(Task):
     """ Clean-up Kraken Serialization
 
