@@ -6,6 +6,7 @@ from typing import Dict, Union, Tuple, List, Optional, Callable, Literal
 from concurrent.futures import ThreadPoolExecutor
 import re
 from xml.sax import saxutils
+import signal
 # Non Std Lib
 import requests
 import tqdm
@@ -20,7 +21,7 @@ DownstreamCheck = Optional[Callable[[InputType], bool]]
 
 
 def _sbmsg(msg) -> str:
-    return f"\t[Subtask] {msg}"
+    return f"[Subtask] {msg}"
 
 
 class Task:
@@ -365,6 +366,7 @@ class KrakenLikeCommand(Task):
             desc: Optional[str] = "kraken-like",
             allow_failure: bool = True,
             check_content: bool = False,
+            max_time_per_op: int = 60, # Seconds
             **kwargs):
         super(KrakenLikeCommand, self).__init__(*args, **kwargs)
         self.command: List[str] = [x for x in self.command if x]
@@ -372,6 +374,7 @@ class KrakenLikeCommand(Task):
         self.check_content: bool = check_content
         self.allow_failure: bool = allow_failure
         self._output_files: List[str] = []
+        self.max_time_per_op: int = max_time_per_op
         self.desc: str = desc
         if "R" not in self.command:
             raise NameError("R is missing in the Kraken-like command (Required for xargs)")
@@ -421,26 +424,38 @@ class KrakenLikeCommand(Task):
                 text = True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                env=my_env
+                env=my_env,
+                preexec_fn=lambda: signal.alarm(len(input_list)*self.max_time_per_op),
             )
 
             out = []
 
-            for line in iter(proc.stdout.readline, ""):
-                for element in self.pbar_parsing(line):
-                    out.append(element)
-                    pbar.update(1)
+            try:
+                for line in iter(proc.stdout.readline, ""):
+                    for element in self.pbar_parsing(line):
+                        out.append(element)
+                        pbar.update(1)
+                        if len(out) == len(input_list):
+                            # Probably a little rough but ensure it does not hang ?
+                            proc.kill()
+                            return out
 
-            return_code = proc.wait()
-         
-            if proc.returncode == 1:
-                print("Error detected in subprocess...")
-                print(proc.stdout.read())
-                print(proc.stderr.read())
-                print("Stopped process")
-                if not self.allow_failure:
-                    raise InterruptedError
-                return [False]
+                return_code = proc.wait()
+             
+                if proc.returncode == 1:
+                    print("Error detected in subprocess...")
+                    print(proc.stdout.read())
+                    print(proc.stderr.read())
+                    print("Stopped process")
+                    if not self.allow_failure:
+                        raise InterruptedError
+                    return out
+            except subprocess.TimeoutExpired as te:
+                try:
+                    process.kill()
+                except Exception as E:
+                    return out
+                return out
             return out
 
         # Group inputs into the number of workers
