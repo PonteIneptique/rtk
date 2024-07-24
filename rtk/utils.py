@@ -255,7 +255,7 @@ def alto_zone_extraction(
     return out_text
 
 
-def pdf_extract(pdf_path: str, start_on: int = 2):
+def pdf_extract(pdf_path: str, start_on: int = 0):
     """ Given a PDF file, generates a new folder with all extracted images
 
     Code adapted from Kraken 4.3.1

@@ -1,18 +1,20 @@
 import os
 import pathlib
-import subprocess
-import csv
 from typing import Dict, Union, Tuple, List, Optional, Callable, Literal
 from concurrent.futures import ThreadPoolExecutor
+import subprocess
+import signal
+import threading
+import csv
 import re
 from xml.sax import saxutils
-import signal
 # Non Std Lib
 import requests
 import tqdm
 # Local
 from rtk import utils
 from itertools import repeat
+import lxml.etree as ET
 
 
 InputType = Union[str, Tuple[str, str]]
@@ -162,21 +164,26 @@ class ExtractPDFTask(Task):
 
     def check(self) -> bool:
         all_done: bool = True
-        for inp in tqdm.tqdm(
+        pdfs_images: Dict[str, List[str]] = {}
+        for single_pdf_path in tqdm.tqdm(
                 self.input_files,
                 desc=_sbmsg("Checking prior processed documents"),
                 total=len(self.input_files)
         ):
-            pdf_nb_pages = utils.pdf_get_nb_pages(inp)
-            scheme = utils.pdf_name_scheme(inp)
+            pdf_nb_pages = utils.pdf_get_nb_pages(single_pdf_path)
+            scheme = utils.pdf_name_scheme(single_pdf_path)
+            pdfs_images[single_pdf_path] = []
             for page in range(pdf_nb_pages):
-                out = scheme.format(page)
-                if os.path.exists(out):
-                    self._checked_files[inp] = True
+                single_page_path = scheme.format(page)
+                if os.path.exists(single_page_path):
+                    self._checked_files[single_pdf_path] = True
+                    pdfs_images[single_pdf_path].append(single_page_path)
                 else:
-                    self._checked_files[inp] = False
+                    self._checked_files[single_pdf_path] = False
                     all_done = False
-        self._output_files.extend([inp for inp, status in self._checked_files.items() if status])
+                    break
+            if self._checked_files[single_pdf_path]:
+                self._output_files.extend(pdfs_images[single_pdf_path])
         return all_done
 
     @property
@@ -188,7 +195,7 @@ class ExtractPDFTask(Task):
         bar = tqdm.tqdm(desc=_sbmsg(f"Extract PDF images command"), total=len(inputs))
         # ToDo: Do not extract page we already have
         for fname in tp.map(utils.pdf_extract, inputs):
-            self._output_files.append(fname)
+            self._output_files.extend(fname)
             bar.update(1)
         bar.close()
         return True
@@ -402,7 +409,7 @@ class KrakenLikeCommand(Task):
             else:
                 self._checked_files[inp] = False
                 all_done = False
-        self._output_files.extend([inp for inp, status in self._checked_files.items() if status])
+        self._output_files.extend([self.rename(inp) for inp, status in self._checked_files.items() if status])
         return all_done
 
     def _process(self, inputs: InputListType) -> bool:
@@ -418,6 +425,8 @@ class KrakenLikeCommand(Task):
             my_env = os.environ.copy()
             my_env["OMP_NUM_THREADS"] = "1"
 
+            out = []
+
             proc = subprocess.Popen(
                 cmd,
                 # capture_output = True,
@@ -428,17 +437,15 @@ class KrakenLikeCommand(Task):
                 preexec_fn=lambda: signal.alarm(len(input_list)*self.max_time_per_op),
             )
 
-            out = []
 
             try:
                 for line in iter(proc.stdout.readline, ""):
                     for element in self.pbar_parsing(line):
                         out.append(element)
                         pbar.update(1)
-                        if len(out) == len(input_list):
-                            # Probably a little rough but ensure it does not hang ?
-                            proc.kill()
-                            return out
+                        break
+                    if len(set(out)) == len(set(input_list)):
+                        break
 
                 return_code = proc.wait()
              
@@ -452,6 +459,7 @@ class KrakenLikeCommand(Task):
                     return out
             except subprocess.TimeoutExpired as te:
                 try:
+                    print(proc.stderr.read())
                     process.kill()
                 except Exception as E:
                     return out
@@ -590,7 +598,7 @@ class KrakenSegAndRecCommand(KrakenLikeCommand):
 
     @staticmethod
     def pbar_parsing(stdout: str) -> str:
-        return re.findall(r"Writing recognition results for ([^\t]+\.xml)", stdout)
+        return re.findall(r"Writing recognition results for ([^\t]+\.xml).*✓", stdout)
 
 
 class KrakenAltoCleanUpCommand(Task):
@@ -705,4 +713,82 @@ class ExtractZoneAltoCommand(Task):
             bar = tqdm.tqdm(total=len(inputs), desc=_sbmsg("Cleaning..."))
             for file in executor.map(custom_alto_zone_extraction, inputs):  # urls=[list of url]
                 bar.update(1)
+        return True
+
+
+class CleanUpAltoGlyphs(Task):
+    """ This command takes an ALTO input and removes the glyph informations
+    """
+    def __init__(
+            self,
+            *args,
+            keep_string: bool = True,
+            **kwargs):
+        super(CleanUpAltoGlyphs, self).__init__(*args, **kwargs)
+        self.keep_string: bool = keep_string
+        self.xsl_path: str = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            ("clean-up-alto.xsl" if keep_string else "clean-up-alto-without-string.xsl")
+        )
+        self._output_files = []
+
+    def rename(self, inp):
+        return inp
+
+    @property
+    def output_files(self) -> List[InputType]:
+        return self._output_files
+
+    def check(self) -> bool:
+        all_done: bool = True
+        for file in tqdm.tqdm(self.input_files, desc=_sbmsg("Checking prior processed documents")):
+            if os.path.exists(self.rename(file)):
+                with open(self.rename(file)) as f:
+                    t = f.read()
+                if self.keep_string and "<SP" in t:
+                    self._checked_files[file] = False
+                    all_done = False
+                elif not self.keep_string and "<Glyph" in t:
+                    self._checked_files[file] = False
+                    all_done = False
+                else:
+                    self._checked_files[file] = True
+
+            else:
+                self._checked_files[file] = False
+                all_done = False
+        return all_done
+
+    def _process(self, inputs: InputListType) -> bool:
+        # Need to add batch capacities
+        def apply_xslt(batch_of_files: List[str], pbar: tqdm.tqdm) -> List[str]:
+            transform = ET.XSLT(ET.parse(self.xsl_path))
+            out = []
+            for file in batch_of_files:
+                try:
+                    doc = ET.parse(file)
+                    doc = transform(doc)
+                    doc.write(self.rename(file))
+                    out.append(self.rename(file))
+                except Exception as E:
+                    raise E
+                    print(E)
+            return out
+
+        # Group inputs into the number of workers
+        total_texts = len(inputs)
+        inputs = utils.split_batches(inputs, self.workers)
+
+        tp = ThreadPoolExecutor(len([batches for batches in inputs if len(batches)]))
+        bar = tqdm.tqdm(
+            desc=_sbmsg(f"Removing <Glyph> from ALTO" if self.keep_string else "Removing <String> from ALTO"),
+            total=total_texts
+        )
+
+        for gen in tp.map(apply_xslt, inputs, repeat(bar)):
+            for elem in gen:
+                if isinstance(elem, str):
+                    self._output_files.append(elem)
+        bar.close()
+
         return True
