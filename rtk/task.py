@@ -73,23 +73,32 @@ class DownloadIIIFImageTask(Task):
 
     Downloads an image and takes a first input string (URI) and a second one (Directory) [Optional]
 
+    :param input_list: List of tuples, where the first value is a URI to download an image, and the second is a folder
     """
     def __init__(
             self,
+            input_files: List[Tuple[str, str]],
             *args,
+            output_prefix: Optional[str] = None,
             downstream_check: DownstreamCheck = None,
             max_height: Optional[int] = None,
             max_width: Optional[int] = None,
             custom_headers: Optional[Dict[str, str]] = None,
             **kwargs):
-        super(DownloadIIIFImageTask, self).__init__(*args, **kwargs)
+        super(DownloadIIIFImageTask, self).__init__(input_files=input_files, *args, **kwargs)
         self.downstream_check = downstream_check
+        self.output_prefix: str = output_prefix
         self._output_files = []
         self._max_h: int = max_height
         self._max_w: int = max_width
         self._custom_headers: Dict[str, str] = custom_headers or {}
         if self._max_h and self._max_w:
             raise Exception("Only one parameter max height / max width is accepted")
+        if self.output_prefix:
+            self.input_files = [
+                (uri, os.path.join(output_prefix, target))
+                for (uri, target) in self.input_files
+            ]
 
     @staticmethod
     def rename_download(file: InputType) -> str:
@@ -303,11 +312,13 @@ class DownloadGallicaPDF(Task):
 
 
 class DownloadIIIFManifestTask(Task):
-    """ Downloads IIIF manifests
+    """ Downloads IIIF manifests (list of URIs as input) and outputs (obj.output_files) a list of
+     tuples such as [(uri_image_1, folder_manuscript1), (uri_image_2, folder_manuscript1),
+     (uri_image_last, folder_manuscript_last)]
 
-    Download task takes a first input string (URI)
-
+    :param input_files: List of manifests
     :param manifest_as_directory: Boolean that uses the manifest filename (can be a function) as a directory container
+
     """
     def __init__(
             self,
@@ -435,23 +446,29 @@ class KrakenLikeCommand(Task):
                 if x != "R":
                     cmd.append(x)
                 else:
-                    cmd.extend([element for mapped_list in map(self.input_format, input_list) for element in mapped_list])
+                    cmd.extend([
+                        element
+                        for mapped_list in map(self.input_format, input_list)
+                        for element in mapped_list
+                    ])
 
+            # This allows to control the number of threads used in a subprocess
             my_env = os.environ.copy()
             my_env["OMP_NUM_THREADS"] = "1"
+            # The following values are necessary for parsing output
+            my_env["LINES"] = "40"
+            my_env["COLUMNS"] = "300"
 
             out = []
 
             proc = subprocess.Popen(
                 cmd,
-                # capture_output = True,
-                text = True,
+                text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 env=my_env,
                 preexec_fn=lambda: signal.alarm(len(input_list)*self.max_time_per_op),
             )
-
 
             try:
                 for line in iter(proc.stdout.readline, ""):
@@ -471,11 +488,10 @@ class KrakenLikeCommand(Task):
                     print("Stopped process")
                     if not self.allow_failure:
                         raise InterruptedError
-                    return out
             except subprocess.TimeoutExpired as te:
                 try:
                     print(proc.stderr.read())
-                    process.kill()
+                    proc.kill()
                 except Exception as E:
                     return out
                 return out
@@ -487,7 +503,6 @@ class KrakenLikeCommand(Task):
 
         tp = ThreadPoolExecutor(len([batches for batches in inputs if len(batches)]))
         bar = tqdm.tqdm(desc=_sbmsg(f"Processing {self.desc} command"), total=total_texts)
-
         for gen in tp.map(work, inputs, repeat(bar)):
             for elem in gen:
                 if isinstance(elem, str):
@@ -498,30 +513,41 @@ class KrakenLikeCommand(Task):
         return ["-i",  inp, self.rename(inp)]
 
 
-
 class YALTAiCommand(KrakenLikeCommand):
     """ Runs a Kraken recognizer
 
     KrakenLikeCommand expect `$out` in its command
+
+    :param input_list: List of images to process
+    :type input_list: List[str]
+    :param yolo_model: Path to a YOLOv8 model
+    :param line_model: [Optional] Path to a custom kraken line segmentation model
+    :param device: Device to run inference on
+    :param allow_failure: Continues to run despite errors
+    :param binary: Path to the YALTAi binary. If the same environment as RTK can be used, simply `yaltai`
+    :param raise_on_error: Raise an exception on error
+    :type raise_on_error: bool
     """
     def __init__(
             self,
             *args,
-            yoloV5_model: Union[str, pathlib.Path],
+            yolo_model: Union[str, pathlib.Path],
             line_model: Optional[Union[str, pathlib.Path]] = None,
             device: str = "cpu",
             allow_failure: bool = False,
             check_content: bool = False,
             binary: str = "yaltai",  # Environment can be env/bin/yaltai
             **kwargs):
-        if not os.path.exists(yoloV5_model):
-            raise ValueError(f"Unknown YOLOv5 model `{yoloV5_model}`")
+        if not os.path.exists(yolo_model):
+            raise ValueError(f"Unknown YOLOv8 model `{yolo_model}`")
 
-        cmd = f"{binary} kraken {' --verbose ' if kwargs.get('verbose') else ''} {' --raise-on-error ' if kwargs.get('raise-on-error') else ''} --device {device} R segment -y {yoloV5_model}".split(" ")
+        cmd = (f"{binary} kraken --verbose "
+               f"{' --raise-on-error ' if kwargs.get('raise_on_error') else ''} --device {device} R "
+               f"segment -y {yolo_model}").split(" ")
 
         if line_model:
             if not os.path.exists(line_model):
-                raise ValueError(f"Unknown YOLOv5 model `{line_model}`")
+                raise ValueError(f"Unknown Kraken model `{line_model}`")
             cmd.extend(f"-i {line_model}".split(" "))
         else:
             print("Using default Kraken line segmenter.")

@@ -54,8 +54,7 @@ for batch in batches:
         dl.output_files,
         binary="yaltaienv/bin/yaltai",
         device="cuda:0",
-        yoloV5_model="GallicorporaSegmentation.pt",
-        verbose=True,
+        yolo_model="GallicorporaSegmentation.pt",
         raise_on_error=True,
         allow_failure=False,
         multiprocess=4,  # GPU Memory // 5gb

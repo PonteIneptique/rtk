@@ -1,11 +1,10 @@
 import pytest
 
 from rtk.task import ExtractPDFTask
-from tests.utils import get_input, get_output, clear_output, remove_output
+from tests.utils import get_input
 from pytest import CaptureFixture
 
 
-@pytest.mark.usefixtures("remove_output")
 def test_pdf_extract(capsys: CaptureFixture[str]):
     """ Test that PDF Extraction works normally """
     extractPDF = ExtractPDFTask(get_input("lorem.pdf"), output_dir="test_output")
@@ -26,7 +25,6 @@ def test_pdf_extract(capsys: CaptureFixture[str]):
     assert "Nothing to process here" in captured.out, "Documents were processed, ignore them"
 
 
-@pytest.mark.usefixtures("remove_output")
 def test_pdf_partial_extract(capsys: CaptureFixture[str]):
     """ Test that partial extraction works normally """
     extractPDF = ExtractPDFTask(get_input("lorem.pdf"), output_dir="test_output", start_on=2)
@@ -45,7 +43,6 @@ def test_pdf_partial_extract(capsys: CaptureFixture[str]):
     assert "Nothing to process here" in captured.out, "Documents were processed, ignore them"
 
 
-@pytest.mark.usefixtures("remove_output")
 def test_pdf_restart_extract(capsys: CaptureFixture[str]):
     """ Test that restarts works normally """
     extractPDF = ExtractPDFTask(get_input("lorem.pdf"), output_dir="test_output", start_on=2)

@@ -202,8 +202,8 @@ def get_name_before_manifest_json(url):
 
 
 def string_to_hash(url: str) -> str:
-    result = hashlib.sha256(url.encode())
-    return result.digest().decode()
+    result = hashlib.sha256(url.encode("utf-8"))
+    return result.hexdigest()[:10]
 
 
 def alto_zone_extraction(
@@ -224,6 +224,7 @@ def alto_zone_extraction(
         return None
     ns = dict(namespaces={"a": "http://www.loc.gov/standards/alto/ns-v4#"})
     # <OtherTag ID="TYPE_35" LABEL="Adresse"/>
+    allowed_tags = []
     if zones:
         allowed_tags = [
             str(otherTag.attrib["ID"])
@@ -296,6 +297,7 @@ def pdf_name_scheme(pdf_path: str, output_dir: Optional[str] = None, page_prefix
     'output/check/f{}.jpg'
     >>> pdf_name_scheme("check.pdf", page_prefix='p')
     'check/p{}.jpg'
+
     """
     path = Path(pdf_path)
     if output_dir:

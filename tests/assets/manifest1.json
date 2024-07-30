@@ -1,0 +1,111 @@
+{
+  "@id" : "https://gallica.bnf.fr/iiif/ark:/12148/bpt6k12401693/manifest.json",
+  "label" : "BnF, département Estampes et photographie, YD-1 (1880-04-05)-8",
+  "attribution" : "Bibliothèque nationale de France",
+  "license" : "https://gallica.bnf.fr/html/und/conditions-dutilisation-des-contenus-de-gallica",
+  "logo" : "https://gallica.bnf.fr/mbImage/logos/logo-bnf.png",
+  "related" : "https://gallica.bnf.fr/ark:/12148/bpt6k12401693",
+  "seeAlso" : [ "http://oai.bnf.fr/oai2/OAIHandler?verb=GetRecord&metadataPrefix=oai_dc&identifier=oai:bnf.fr:gallica/ark:/12148/bpt6k12401693" ],
+  "description" : "Catalogue de livres précieux ornés de reliures anciennes avec armoiries...",
+  "metadata" : [ {
+    "label" : "Repository",
+    "value" : "Bibliothèque nationale de France"
+  }, {
+    "label" : "Digitised by",
+    "value" : "Bibliothèque nationale de France"
+  }, {
+    "label" : "Source Images",
+    "value" : "https://gallica.bnf.fr/ark:/12148/bpt6k12401693"
+  }, {
+    "label" : "Metadata Source",
+    "value" : "http://oai.bnf.fr/oai2/OAIHandler?verb=GetRecord&metadataPrefix=oai_dc&identifier=oai:bnf.fr:gallica/ark:/12148/bpt6k12401693"
+  }, {
+    "label" : "Shelfmark",
+    "value" : "Bibliothèque nationale de France, département Estampes et photographie, YD-1 (1880-04-05)-8"
+  }, {
+    "label" : "Title",
+    "value" : "Catalogue de livres précieux ornés de reliures anciennes avec armoiries..."
+  }, {
+    "label" : "Date",
+    "value" : "1880"
+  }, {
+    "label" : "Language",
+    "value" : "french"
+  }, {
+    "label" : "Format",
+    "value" : [ {
+      "@value" : "XII-162 p. ; 25 cm"
+    }, {
+      "@value" : "Nombre total de vues :  187"
+    } ]
+  }, {
+    "label" : "Relation",
+    "value" : "Notice du catalogue : http://catalogue.bnf.fr/ark:/12148/cb415297616"
+  }, {
+    "label" : "Type",
+    "value" : "Book"
+  } ],
+  "sequences" : [ {
+    "canvases" : [ {
+      "@id" : "https://gallica.bnf.fr/iiif/ark:/12148/bpt6k12401693/canvas/f1",
+      "label" : "NP",
+      "height" : 1542,
+      "width" : 1285,
+      "images" : [ {
+        "motivation" : "sc:painting",
+        "on" : "https://gallica.bnf.fr/iiif/ark:/12148/bpt6k12401693/canvas/f1",
+        "resource" : {
+          "format" : "image/jpeg",
+          "service" : {
+            "profile" : "http://library.stanford.edu/iiif/image-api/1.1/compliance.html#level2",
+            "@context" : "http://iiif.io/api/image/1/context.json",
+            "@id" : "https://gallica.bnf.fr/iiif/ark:/12148/bpt6k12401693/f1"
+          },
+          "height" : 1542,
+          "width" : 1285,
+          "@id" : "https://gallica.bnf.fr/iiif/ark:/12148/bpt6k12401693/f1/full/full/0/native.jpg",
+          "@type" : "dctypes:Image"
+        },
+        "@type" : "oa:Annotation"
+      } ],
+      "thumbnail" : {
+        "@id" : "https://gallica.bnf.fr/ark:/12148/bpt6k12401693/f1.thumbnail"
+      },
+      "@type" : "sc:Canvas"
+    }, {
+      "@id" : "https://gallica.bnf.fr/iiif/ark:/12148/bpt6k12401693/canvas/f2",
+      "label" : "NP",
+      "height" : 3582,
+      "width" : 2470,
+      "images" : [ {
+        "motivation" : "sc:painting",
+        "on" : "https://gallica.bnf.fr/iiif/ark:/12148/bpt6k12401693/canvas/f2",
+        "resource" : {
+          "format" : "image/jpeg",
+          "service" : {
+            "profile" : "http://library.stanford.edu/iiif/image-api/1.1/compliance.html#level2",
+            "@context" : "http://iiif.io/api/image/1/context.json",
+            "@id" : "https://gallica.bnf.fr/iiif/ark:/12148/bpt6k12401693/f2"
+          },
+          "height" : 3582,
+          "width" : 2470,
+          "@id" : "https://gallica.bnf.fr/iiif/ark:/12148/bpt6k12401693/f2/full/full/0/native.jpg",
+          "@type" : "dctypes:Image"
+        },
+        "@type" : "oa:Annotation"
+      } ],
+      "thumbnail" : {
+        "@id" : "https://gallica.bnf.fr/ark:/12148/bpt6k12401693/f2.thumbnail"
+      },
+      "@type" : "sc:Canvas"
+    }],
+    "label" : "Current Page Order",
+    "@type" : "sc:Sequence",
+    "@id" : "https://gallica.bnf.fr/iiif/ark:/12148/bpt6k12401693/sequence/default"
+  } ],
+  "thumbnail" : {
+    "@id" : "https://gallica.bnf.fr/ark:/12148/bpt6k12401693.thumbnail"
+  },
+  "@type" : "sc:Manifest",
+  "@context" : "http://iiif.io/api/presentation/2/context.json"
+}
