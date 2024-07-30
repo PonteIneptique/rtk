@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import subprocess
 import signal
 import threading
+from functools import partial
 import csv
 import re
 from xml.sax import saxutils
@@ -155,12 +156,24 @@ class DownloadIIIFImageTask(Task):
 
 
 class ExtractPDFTask(Task):
+    """ Extract JPG from PDFs
+
+    :param output_dir: Path to the directory containing the output of the PDF extraction
+    :param start_on: Page to start the extraction from. Some PDF have added prefaces, use this for ignoring them.
+    """
     def __init__(
             self,
             *args,
+            output_dir: Optional[str] = None,
+            start_on: int = 0,
             **kwargs):
         super(ExtractPDFTask, self).__init__(*args, **kwargs)
         self._output_files: List[str] = []
+        self._output_dir: str = output_dir
+        self._start_on: int = start_on
+
+    def _get_scheme(self, pdf_path):
+        return utils.pdf_name_scheme(pdf_path, output_dir=self._output_dir)
 
     def check(self) -> bool:
         all_done: bool = True
@@ -171,9 +184,9 @@ class ExtractPDFTask(Task):
                 total=len(self.input_files)
         ):
             pdf_nb_pages = utils.pdf_get_nb_pages(single_pdf_path)
-            scheme = utils.pdf_name_scheme(single_pdf_path)
+            scheme = self._get_scheme(single_pdf_path)
             pdfs_images[single_pdf_path] = []
-            for page in range(pdf_nb_pages):
+            for page in range(self._start_on, pdf_nb_pages):
                 single_page_path = scheme.format(page)
                 if os.path.exists(single_page_path):
                     self._checked_files[single_pdf_path] = True
@@ -193,8 +206,10 @@ class ExtractPDFTask(Task):
     def _process(self, inputs: InputListType) -> bool:
         tp = ThreadPoolExecutor(self.workers)
         bar = tqdm.tqdm(desc=_sbmsg(f"Extract PDF images command"), total=len(inputs))
-        # ToDo: Do not extract page we already have
-        for fname in tp.map(utils.pdf_extract, inputs):
+
+        for fname in tp.map(
+                partial(utils.pdf_extract, scheme_string=self._get_scheme, start_on=self._start_on),
+                inputs):
             self._output_files.extend(fname)
             bar.update(1)
         bar.close()

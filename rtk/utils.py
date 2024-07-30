@@ -216,7 +216,6 @@ def alto_zone_extraction(
     :param zones:
     :return: Agglutinated Lines
 
-    >>> alto_zone_extraction("../test_dir/AEV_3090_1870_Goms_Ausserbinn_010.xml", ["Col"])
     """
     zones = zones or []
     try:
@@ -255,33 +254,56 @@ def alto_zone_extraction(
     return out_text
 
 
-def pdf_extract(pdf_path: str, start_on: int = 0):
+def pdf_extract(pdf_path: str, start_on: int = 0, scheme_string: Optional[str] = None):
     """ Given a PDF file, generates a new folder with all extracted images
 
     Code adapted from Kraken 4.3.1
 
     :param pdf_path:
     :param start_on: Page to start on (Default is 2 because Gallica adds generated metadata)
+    :param scheme_string: String Scheme
     :return:
     """
     n_pages = pdf_get_nb_pages(pdf_path)
-    scheme = pdf_name_scheme(pdf_path)
-    os.makedirs(Path(scheme).parent, exist_ok=True)
-    scheme = str(scheme)
+    if not scheme_string:
+        scheme_string = pdf_name_scheme(pdf_path)
+    elif callable(scheme_string):
+        scheme_string = scheme_string(pdf_path)
     out = []
     for i in range(start_on, n_pages):
         doc = pyvips.Image.new_from_file(pdf_path, dpi=300, page=i, access="sequential")
-        local_targ = scheme.format(i)
+        local_targ = scheme_string.format(i)
         doc.write_to_file(local_targ)
         out.append(str(local_targ))
     return out
 
 
-def pdf_name_scheme(pdf_path: str) -> str:
+def pdf_name_scheme(pdf_path: str, output_dir: Optional[str] = None, page_prefix: str = "f") -> str:
+    """ Generate a file scheme based on a PDF file
+
+    :param pdf_path: Path to the PDF
+    :param output_dir: Path where the output should be created, by default write in the same path as PDF
+    :param page_prefix: The prefix for the file export, by default "f"
+    :return: F-String
+
+    >>> pdf_name_scheme("check.pdf")
+    'check/f{}.jpg'
+    >>> pdf_name_scheme("blop/check.pdf")
+    'blop/check/f{}.jpg'
+    >>> pdf_name_scheme("check.pdf", output_dir="output")
+    'output/check/f{}.jpg'
+    >>> pdf_name_scheme("blop/check.pdf", output_dir="output")
+    'output/check/f{}.jpg'
+    >>> pdf_name_scheme("check.pdf", page_prefix='p')
+    'check/p{}.jpg'
+    """
     path = Path(pdf_path)
-    target = Path(os.path.join(path.parent, path.stem))
+    if output_dir:
+        target = Path(os.path.join(output_dir, path.stem))
+    else:
+        target = Path(os.path.join(path.parent, path.stem))
     os.makedirs(target, exist_ok=True)
-    return str(Path.joinpath(target, "f{}.jpg"))
+    return str(Path.joinpath(target, page_prefix + "{}.jpg"))
 
 
 def pdf_get_nb_pages(pdf_path: str) -> int:
