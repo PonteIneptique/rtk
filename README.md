@@ -1,6 +1,8 @@
 RTK: Release the Krakens
 ========================
 
+[![Test library](https://github.com/PonteIneptique/rtk/actions/workflows/test.yml/badge.svg)](https://github.com/PonteIneptique/rtk/actions/workflows/test.yml)
+
 `Release the krakens` (RTK) is meant as a **task management scripting library** focused on retrieving data from online 
 repositories and on applying a series of annotation (Segmentation with YALTAi, Clean Up, Kraken) while keeping the disk
 space usage low (with some clean up function).
