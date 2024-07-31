@@ -8,6 +8,8 @@ from pathlib import Path
 import pyvips
 import requests
 import lxml.etree as ET
+import cases
+import unidecode
 from xml.sax.saxutils import escape
 
 
@@ -101,15 +103,15 @@ def download_iiif_manifest(url: str, target: str, options: Optional[Dict[str, st
         print(E)
         return None
     rows = []
-    dirname = os.path.splitext(os.path.basename(target))[0]
+    dirname = clean_kebab(j["label"])
     if "items" in j:
-        for element in j["items"]:
-            rows.append([element["items"][0]["items"][0]["body"]["id"], dirname])
+        for idx, element in enumerate(j["items"]):
+            rows.append([element["items"][0]["items"][0]["body"]["id"], dirname, f"f{idx}-"+clean_kebab(element["label"])])
     elif "sequences" in j:
-        for canvas in j["sequences"][0]["canvases"]:
+        for idx, canvas in enumerate(j["sequences"][0]["canvases"]):
             elm = cleverer_manifest_parsing(canvas["images"][0])
             if elm:
-                rows.append([elm, dirname])
+                rows.append([elm, dirname, f"f{idx}-"+clean_kebab(canvas["label"])])
 
     with open(target, 'w') as handle:
         writer = csv.writer(handle)
@@ -377,3 +379,7 @@ def cleverer_manifest_parsing(image: Dict[str, Any], head_check: bool = False) -
             return image_url+".jpg"
         return image['resource']['@id']
     return None
+
+
+def clean_kebab(string: str) -> str:
+    return cases.to_kebab(unidecode.unidecode(string))

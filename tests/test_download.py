@@ -40,8 +40,8 @@ def test_download_images(requests_mock):
     )
 
     inplist = [
-        ('https://gallica.bnf.fr/iiif/ark:/12148/bpt6k12401693/f1/full/full/0/native.jpg', 'e8972d7b51'),
-        ('https://gallica.bnf.fr/iiif/ark:/12148/bpt6k12401693/f2/full/full/0/native.jpg', 'e8972d7b51')
+        ('https://gallica.bnf.fr/iiif/ark:/12148/bpt6k12401693/f1/full/full/0/native.jpg', 'e8972d7b51', "f1"),
+        ('https://gallica.bnf.fr/iiif/ark:/12148/bpt6k12401693/f2/full/full/0/native.jpg', 'e8972d7b51', "f2")
     ]
     dl = DownloadIIIFImageTask(
         [] + inplist,

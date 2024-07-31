@@ -4,7 +4,6 @@ from typing import Dict, Union, Tuple, List, Optional, Callable, Literal
 from concurrent.futures import ThreadPoolExecutor
 import subprocess
 import signal
-import threading
 from functools import partial
 import csv
 import re
@@ -77,7 +76,7 @@ class DownloadIIIFImageTask(Task):
     """
     def __init__(
             self,
-            input_files: List[Tuple[str, str]],
+            input_files: List[Tuple[str, str, str]],
             *args,
             output_prefix: Optional[str] = None,
             downstream_check: DownstreamCheck = None,
@@ -96,13 +95,13 @@ class DownloadIIIFImageTask(Task):
             raise Exception("Only one parameter max height / max width is accepted")
         if self.output_prefix:
             self.input_files = [
-                (uri, os.path.join(output_prefix, target))
-                for (uri, target) in self.input_files
+                (uri, os.path.join(output_prefix, target), fname)
+                for (uri, target, fname) in self.input_files
             ]
 
     @staticmethod
-    def rename_download(file: InputType) -> str:
-        return os.path.join(file[1], file[0].split("/")[-5] + ".jpg")
+    def rename_download(file: Tuple[str, str, str]) -> str:
+        return os.path.join(file[1], f"{file[2]}.jpg")
 
     @staticmethod
     def check_downstream_task(extension: str = ".xml", content_check: DownstreamCheck = None) -> Callable:
@@ -135,7 +134,7 @@ class DownloadIIIFImageTask(Task):
                 all_done = False
         return all_done
 
-    def _process(self, inputs: InputListType) -> bool:
+    def _process(self, inputs: List[Tuple[str, str, str]]) -> bool:
         done = []
         options = {**self._custom_headers}
         if self._max_h:
@@ -155,9 +154,9 @@ class DownloadIIIFImageTask(Task):
         except KeyboardInterrupt:
             bar.close()
             print("Download manually interrupted, removing partial JPGs")
-            for url, directory in inputs:
+            for url, directory, fname in inputs:
                 if url not in done:
-                    tgt = self.rename_download((url, directory))
+                    tgt = self.rename_download((url, directory, fname))
                     if os.path.exists(tgt):
                         os.remove(tgt)
         self._output_files.extend(done)
@@ -349,8 +348,9 @@ class DownloadIIIFManifestTask(Task):
         return out
 
     @property
-    def output_files(self) -> List[InputType]:
-        """ Unlike the others, one input file = more output files
+    def output_files(self) -> List[Tuple[str, str, str]]:
+        """ For each input manifest, outputs all pages found. Each page is provided with
+        a directory name based on the manuscript
 
         We read inputfile transformed to get the output files (CSV files: FILE + Directory)
         """
@@ -399,7 +399,7 @@ class KrakenLikeCommand(Task):
             desc: Optional[str] = "kraken-like",
             allow_failure: bool = True,
             check_content: bool = False,
-            max_time_per_op: int = 60, # Seconds
+            max_time_per_op: int = 60,  # Seconds
             **kwargs):
         super(KrakenLikeCommand, self).__init__(*args, **kwargs)
         self.command: List[str] = [x for x in self.command if x]
