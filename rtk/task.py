@@ -1,20 +1,22 @@
 import os
 import pathlib
-from typing import Dict, Union, Tuple, List, Optional, Callable, Literal
-from concurrent.futures import ThreadPoolExecutor
 import subprocess
 import signal
-from functools import partial
 import csv
 import re
+from functools import partial
+from typing import Dict, Union, Tuple, List, Optional, Callable, Literal
+from concurrent.futures import ThreadPoolExecutor
 from xml.sax import saxutils
+from collections import defaultdict
+from itertools import repeat
 # Non Std Lib
 import requests
 import tqdm
+import lxml.etree as ET
 # Local
 from rtk import utils
-from itertools import repeat
-import lxml.etree as ET
+from rtk import mets_utils
 
 
 InputType = Union[str, Tuple[str, str]]
@@ -832,4 +834,40 @@ class CleanUpAltoGlyphs(Task):
                     self._output_files.append(elem)
         bar.close()
 
+        return True
+
+
+class METSBuilder(Task):
+    def __init__(self, input_files: List[str], target_prefix: Optional[str] = None):
+        self._target: Optional[str] = target_prefix
+        if self._target:
+            os.makedirs(self._target, exist_ok=True)
+        super().__init__(input_files=input_files)
+
+        self._output_files = []
+        self._groups: Dict[str, List[str]] = defaultdict(list)
+        for file in input_files:
+            self._groups[os.path.dirname(file)].append(file)
+
+    def check(self) -> bool:
+        """Currently, we rezip everything, simpler that processing zip """
+        self._checked_files = {
+            file: False
+            for file in self.input_files
+        }
+        return False
+
+    def _process(self, inputs: InputListType) -> bool:
+        bar = tqdm.tqdm(
+            desc=_sbmsg(f"Processing documents into METS"),
+            total=len(self._groups)
+        )
+
+        for group in self._groups:
+            mets_utils.produce_mets(group, exclude="METS.xml")
+            folder = os.path.basename(group)
+            mets_name = f"{os.path.join(self._target, folder) or folder}-mets.zip"
+            mets_utils.zip_folder(group, mets_name)
+            self._output_files.append(mets_name)
+            bar.update(1)
         return True
