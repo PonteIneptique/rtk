@@ -102,22 +102,31 @@ def download_iiif_manifest(url: str, target: str, options: Optional[Dict[str, st
     except Exception as E:
         print(E)
         return None
+
+    parse_manifest(j, target)
+
+    return url
+
+
+def parse_manifest(json_data: Dict, target: str) -> List[List[str]]:
     rows = []
-    dirname = clean_kebab(j["label"])
-    if "items" in j:
-        for idx, element in enumerate(j["items"]):
-            rows.append([element["items"][0]["items"][0]["body"]["id"], dirname, f"f{idx}-"+clean_kebab(element["label"])])
-    elif "sequences" in j:
-        for idx, canvas in enumerate(j["sequences"][0]["canvases"]):
+    dirname = clean_kebab(json_data["label"])
+    if "items" in json_data:
+        for idx, element in enumerate(json_data["items"]):
+            rows.append([
+                element["items"][0]["items"][0]["body"]["id"],
+                dirname,
+                f"f{idx}-"+clean_kebab(element["label"])
+            ])
+    elif "sequences" in json_data:
+        for idx, canvas in enumerate(json_data["sequences"][0]["canvases"]):
             elm = cleverer_manifest_parsing(canvas["images"][0])
             if elm:
                 rows.append([elm, dirname, f"f{idx}-"+clean_kebab(canvas["label"])])
-
     with open(target, 'w') as handle:
         writer = csv.writer(handle)
         writer.writerows(rows)
-
-    return url
+    return rows
 
 
 def check_content(filepath, ratio: Union[int, float] = 1):
