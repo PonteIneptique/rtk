@@ -3,6 +3,6 @@ lxml==4.9.2
 PyYAML==6.0
 requests==2.28.1
 tqdm==4.64.1
-pyvips==2.2.3
 pycases
 unidecode
+PyMuPDF>=1.23.5
