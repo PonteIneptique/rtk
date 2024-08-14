@@ -1,11 +1,11 @@
 # Std lib
-from typing import Tuple, List, Optional, Dict, Union, Any
+from typing import Tuple, List, Optional, Dict, Union, Any, Callable
 import os
 import hashlib
 import csv
 from pathlib import Path
 # Non std lib
-import pyvips
+import fitz  # PyMuPDF
 import requests
 import lxml.etree as ET
 import cases
@@ -257,7 +257,7 @@ def alto_zone_extraction(
     return out_text
 
 
-def pdf_extract(pdf_path: str, start_on: int = 0, scheme_string: Optional[str] = None):
+def pdf_extract(pdf_path: str, start_on: int = 0, scheme_string: Optional[str | Callable] = None) -> list[str]:
     """ Given a PDF file, generates a new folder with all extracted images
 
     Code adapted from Kraken 4.3.1
@@ -267,17 +267,20 @@ def pdf_extract(pdf_path: str, start_on: int = 0, scheme_string: Optional[str] =
     :param scheme_string: String Scheme
     :return:
     """
-    n_pages = pdf_get_nb_pages(pdf_path)
+    doc = fitz.open(pdf_path)
+    n_pages = len(doc)
     if not scheme_string:
         scheme_string = pdf_name_scheme(pdf_path)
     elif callable(scheme_string):
         scheme_string = scheme_string(pdf_path)
     out = []
     for i in range(start_on, n_pages):
-        doc = pyvips.Image.new_from_file(pdf_path, dpi=300, page=i, access="sequential")
+        page = doc.load_page(i)
+        pix = page.get_pixmap(matrix=fitz.Matrix(300 / 72, 300 / 72)) # scaling dpi
         local_targ = scheme_string.format(i)
-        doc.write_to_file(local_targ)
+        pix.save(local_targ)
         out.append(str(local_targ))
+    doc.close()
     return out
 
 
@@ -311,10 +314,10 @@ def pdf_name_scheme(pdf_path: str, output_dir: Optional[str] = None, page_prefix
 
 
 def pdf_get_nb_pages(pdf_path: str) -> int:
-    doc = pyvips.Image.new_from_file(pdf_path, dpi=300, n=-1, access="sequential")
-    if 'n-pages' not in doc.get_fields():
-        raise Exception("No page count in the PDF")
-    return doc.get('n-pages')
+    doc = fitz.open(pdf_path)
+    page_count = len(doc)
+    doc.close()
+    return page_count
 
 
 def simple_args_kwargs_wrapper(function, **kwargs):
