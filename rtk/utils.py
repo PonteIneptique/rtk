@@ -401,5 +401,9 @@ def cleverer_manifest_parsing(image: Dict[str, Any], head_check: bool = False) -
     return None
 
 
-def clean_kebab(string: str) -> str:
-    return cases.to_kebab(unidecode.unidecode(string))
+def clean_kebab(string: str, max_length: int = 255) -> str:
+    kebab_string = cases.to_kebab(unidecode.unidecode(string))
+    # trunc
+    if len(kebab_string) > max_length:
+        kebab_string = kebab_string[:max_length].rsplit('-', 1)[0]  # trunc last dash
+    return kebab_string
