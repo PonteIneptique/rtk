@@ -54,12 +54,16 @@ manifest_identifiers, batches = utils.batchify_jsonfile('manifests.json', batch_
 from re import sub
 
 
-def kebab(s):
-    return sub(r"https?-", "", '-'.join(
+def kebab(s, max_length=255):
+    kebab_string = sub(r"https?-", "", '-'.join(
         sub(r"(\W+)"," ",
         sub(r"[A-Z]{2,}(?=[A-Z][a-z]+[0-9]*|\b)|[A-Z]?[a-z]+[0-9]*|[A-Z]|[0-9]+",
         lambda mo: ' ' + mo.group(0).lower(), s)).split()
     ))
+    # trunc
+    if len(kebab_string) > max_length:
+        kebab_string = kebab_string[:max_length].rsplit('-', 1)[0]  # Truncate the last hyphen to avoid a break in the middle of the word
+    return kebab_string
 
 
 for batch in batches:
