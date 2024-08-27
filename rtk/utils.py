@@ -401,7 +401,7 @@ def cleverer_manifest_parsing(image: Dict[str, Any], head_check: bool = False) -
     return None
 
 
-def clean_kebab(string: str, max_length: int = 255) -> str:
+def clean_kebab(string: str, max_length: int = 100) -> str:
     kebab_string = cases.to_kebab(unidecode.unidecode(string))
     # trunc
     if len(kebab_string) > max_length:
