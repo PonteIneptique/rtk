@@ -19,6 +19,7 @@ import os
 import zipfile
 import csv
 import json
+import torch
 
 def read_manifest_identifiers(file_path):
     with open(file_path, 'r') as file:
@@ -95,10 +96,12 @@ for batch in batches:
         yolo_model="seg_model.pt",
         raise_on_error=True,
         allow_failure=False,
-        multiprocess=8,  # GPU Memory // 5gb
+        multiprocess=4,  # GPU Memory // 5gb
         check_content=False
     )
     yaltai.process()
+
+    torch.cuda.empty_cache()
 
     # Clean-up the relative filepath of Kraken Serialization
     print("[Task] Clean-Up Serialization")
@@ -112,10 +115,12 @@ for batch in batches:
         binary="kraken",
         device="cuda:0",
         model="htr_model.mlmodel",
-        multiprocess=12,  # GPU Memory // 3gb
+        multiprocess=8,  # GPU Memory // 3gb
         check_content=False
     )
     kraken.process()
+
+    torch.cuda.empty_cache()
 
     for manifest_url in batch:
         identifier = manifest_identifiers.get(manifest_url)
