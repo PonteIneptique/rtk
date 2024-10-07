@@ -76,7 +76,7 @@ for batch in batches:
         yolo_model="seg_model.pt",
         raise_on_error=True,
         allow_failure=False,
-        multiprocess=4,  # GPU Memory // 5gb
+        multiprocess=8,  # GPU Memory // 5gb
         check_content=False
     )
     yaltai.process()
@@ -95,7 +95,7 @@ for batch in batches:
         binary="kraken",
         device="cuda:0",
         model="nfd_best.mlmodel",
-        multiprocess=8,  # GPU Memory // 3gb
+        multiprocess=16,  # GPU Memory // 3gb
         check_content=False
     )
     kraken.process()
