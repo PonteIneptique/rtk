@@ -18,6 +18,7 @@ import os
 import zipfile
 import json
 import torch
+from pathlib import Path
 
 def read_manifest_identifiers(file_path):
     with open(file_path, 'r') as file:
@@ -25,6 +26,7 @@ def read_manifest_identifiers(file_path):
 
 # Function to create zip files
 def create_zip_files(identifier, output_directory, image_folder):
+    os.makedirs(output_directory, exist_ok=True)
     image_zip_path = os.path.join(output_directory, f"{identifier}_facsimile.zip")
     with zipfile.ZipFile(image_zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
         for root, dirs, files in os.walk(image_folder):
@@ -40,7 +42,7 @@ def create_zip_files(identifier, output_directory, image_folder):
                 if file.endswith('.xml'):
                     zipf.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), image_folder))
 
-manifest_identifiers, batches = utils.batchify_jsonfile('pdfs.json', batch_size=2)
+pdfs_identifiers, batches = utils.batchify_jsonfile('pdfs.json', batch_size=2)
 
 from re import sub
 
@@ -63,7 +65,8 @@ for batch in batches:
     dl = ExtractPDFTask(
         batch,
         output_directory="output",
-        naming_function=lambda x: kebab(x), multiprocess=10
+        multiprocess=10,
+        start_on=1
     )
     dl.process()
 
@@ -103,8 +106,8 @@ for batch in batches:
     torch.cuda.empty_cache()
 
     for pdf in batch:
-        identifier = manifest_identifiers.get(pdf)
+        identifier = pdfs_identifiers[pdf]
         if identifier:
-            image_folder = os.path.join(kebab(pdf))
+            image_folder = Path(pdf).stem
             if image_folder:
                 create_zip_files(identifier, "output", image_folder)
