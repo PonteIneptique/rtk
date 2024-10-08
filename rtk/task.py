@@ -599,6 +599,40 @@ class KrakenRecognizerCommand(KrakenLikeCommand):
             **kwargs
         )
 
+    def check(self) -> bool:
+        all_done: bool = True
+        for inp in tqdm.tqdm(
+                self.input_files,
+                desc=_sbmsg("Checking prior processed documents"),
+                total=len(self.input_files)
+        ):
+            out = inp
+
+            if os.path.exists(out):
+                self._checked_files[inp] = self.check_alto_content(out)
+            else:
+                self._checked_files[inp] = False
+
+            all_done = all_done and self._checked_files[inp]
+
+        return all_done
+
+    def check_alto_content(self, file_path: str) -> bool:
+        try:
+            tree = ET.parse(file_path)
+            root = tree.getroot()
+
+            ns = {'alto': 'http://www.loc.gov/standards/alto/ns-v4#'}
+
+            for string in root.findall('.//alto:String', ns):
+                if string.get('CONTENT'):
+                    return True
+
+            return False
+        except ET.ParseError:
+            print(f"Error parsing XML file: {file_path}")
+            return False
+
     @staticmethod
     def pbar_parsing(stdout: str) -> str:
         return re.findall(r"Writing recognition results for ([^\t]+\.xml)", stdout)
