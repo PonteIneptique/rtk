@@ -13,5 +13,10 @@ def test_yaltai(capsys):
         binary=get_env_bin("yaltaienv", "yaltai")
     )
     yaltai.process()
+    print(files)
+
     assert len(yaltai.output_files) == 2, "Two files were processed"
     assert sorted(yaltai.output_files) == ['test_output/page1.xml', 'test_output/page2.xml'], "Two files were processed"
+    with open('test_output/page1.xml') as f:
+        data = f.read()
+    assert "<alto" in data

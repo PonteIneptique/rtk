@@ -424,6 +424,10 @@ class KrakenLikeCommand(Task):
             for file in self._output_files
         ])
 
+    @staticmethod
+    def pbar_parsing(input_string: str) -> List[str]:
+        raise NotImplementedError
+
     def check(self) -> bool:
         all_done: bool = True
         for inp in tqdm.tqdm(
@@ -543,7 +547,7 @@ class YALTAiCommand(KrakenLikeCommand):
         if not os.path.exists(yolo_model):
             raise ValueError(f"Unknown YOLOv8 model `{yolo_model}`")
 
-        cmd = (f"{binary} kraken --verbose "
+        cmd = (f"{binary} kraken --verbose --alto "
                f"{' --raise-on-error ' if kwargs.get('raise_on_error') else ''} --device {device} R "
                f"segment -y {yolo_model}").split(" ")
 
@@ -565,8 +569,8 @@ class YALTAiCommand(KrakenLikeCommand):
         )
 
     @staticmethod
-    def pbar_parsing(stdout: str) -> str:
-        return re.findall(r"Serializing as alto into (.+\.xml)\s+kraken_yaltai", stdout)
+    def pbar_parsing(stdout: str) -> List[str]:
+        return re.findall(r"Serializing as alto into (.+\.xml)\s+", stdout)
 
 
 class KrakenRecognizerCommand(KrakenLikeCommand):
@@ -600,7 +604,7 @@ class KrakenRecognizerCommand(KrakenLikeCommand):
         )
 
     @staticmethod
-    def pbar_parsing(stdout: str) -> str:
+    def pbar_parsing(stdout: str) -> List[str]:
         return re.findall(r"Writing recognition results for ([^\t]+\.xml)", stdout)
 
 
@@ -640,7 +644,7 @@ class KrakenSegAndRecCommand(KrakenLikeCommand):
         )
 
     @staticmethod
-    def pbar_parsing(stdout: str) -> str:
+    def pbar_parsing(stdout: str) -> List[str]:
         return re.findall(r"Writing recognition results for ([^\t]+\.xml).*✓", stdout)
 
 
