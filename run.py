@@ -26,7 +26,7 @@ def read_manifest_identifiers(file_path):
         return json.load(file)
 
 # Function to create zip files
-def create_zip_files(identifier, output_directory, image_folder, xml_files, csv_file):
+def create_zip_files(identifier, output_directory, image_folder, csv_file):
     # Create zip for images
     image_zip_path = os.path.join(output_directory, f"{identifier}_facsimile.zip")
     with zipfile.ZipFile(image_zip_path, 'w') as zipf:
@@ -40,8 +40,10 @@ def create_zip_files(identifier, output_directory, image_folder, xml_files, csv_
     # Create zip for XMLs
     xml_zip_path = os.path.join(output_directory, f"{identifier}_altos_transcribed.zip")
     with zipfile.ZipFile(xml_zip_path, 'w') as zipf:
-        for xml_file in xml_files:
-            zipf.write(xml_file, os.path.basename(xml_file))
+        for root, dirs, files in os.walk(image_folder):
+            for file in files:
+                if file.endswith('.xml'):
+                    zipf.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), image_folder))
 
 def get_image_folder_from_csv(csv_file):
     with open(csv_file, 'r') as file:
@@ -114,8 +116,8 @@ for batch in batches:
         yaltai.output_files,
         binary="kraken",
         device="cuda:0",
-        model="htr_model.mlmodel",
-        multiprocess=8,  # GPU Memory // 3gb
+        model="nfd_best.mlmodel",
+        multiprocess=12,  # GPU Memory // 3gb
         check_content=False
     )
     kraken.process()
@@ -128,5 +130,4 @@ for batch in batches:
             csv_file = os.path.join("output", kebab(manifest_url) + ".csv")
             image_folder = get_image_folder_from_csv(csv_file)
             if image_folder:
-                xml_files = [xml for xml in kraken.output_files if xml.startswith(image_folder)]
-                create_zip_files(identifier, "output", image_folder, xml_files, csv_file)
+                create_zip_files(identifier, "output", image_folder, csv_file)
