@@ -101,17 +101,32 @@ def download_iiif_manifest(url: str, target: str, options: Optional[Dict[str, st
         print(E)
         return None
     rows = []
-    dirname = clean_kebab(j["label"])
+
+    def _get_label(obj):
+        """ This provides some from of resistance to APIv3 of Gallica"""
+        if isinstance(obj["label"], str):
+            return obj["label"]
+        elif isinstance(obj["label"], dict):
+            for key in obj["label"]:
+                if isinstance(obj["label"][key], str):
+                    return obj["label"][key]
+                elif isinstance(obj["label"][key], list):
+                    return obj["label"][key][0]
+
+    if dirname := _get_label(j):
+        dirname = clean_kebab(dirname)
+    else:
+        raise ValueError(f"No label in {url}")
+    print()
     if "items" in j:
         for idx, element in enumerate(j["items"]):
             rows.append(
-                [element["items"][0]["items"][0]["body"]["id"], dirname, f"f{idx}-" + clean_kebab(element["label"])]
-            )
+                [element["items"][0]["items"][0]["body"]["id"], dirname, f"f{idx}-" + clean_kebab(_get_label(element))])
     elif "sequences" in j:
         for idx, canvas in enumerate(j["sequences"][0]["canvases"]):
             elm = cleverer_manifest_parsing(canvas["images"][0])
             if elm:
-                rows.append([elm, dirname, f"f{idx}-" + clean_kebab(canvas["label"])])
+                rows.append([elm, dirname, f"f{idx}-" + clean_kebab(_get_label(canvas))])
 
     with open(target, 'w') as handle:
         writer = csv.writer(handle)
@@ -128,7 +143,7 @@ def check_parsable(filepath):
     :return: True if the file has above N lines, False if it needs to be OCRized
     """
     try:
-        ET.parse(filepath)
+        xml = ET.parse(filepath)
         return True
     except Exception:
         return False
@@ -149,7 +164,6 @@ def check_content(filepath, ratio: Union[int, float] = 1):
         return False
     data = []
     if len(xml.xpath("//a:TextLine", namespaces={"a": "http://www.loc.gov/standards/alto/ns-v4#"})) == 0:
-        # Document has no lines.
         return True
 
     for content in xml.xpath("//a:String/@CONTENT", namespaces={"a": "http://www.loc.gov/standards/alto/ns-v4#"}):

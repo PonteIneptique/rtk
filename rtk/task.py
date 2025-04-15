@@ -353,16 +353,20 @@ class DownloadIIIFManifestTask(Task):
         return out
 
     @property
-    def output_files_map(self) -> Dict[Tuple[str, str, str], str]:
+    def output_files_map(self) -> Dict[str, str]:
         outputs = {}
         for uri in self.input_files:
-            dl_file = self.rename_download(uri)
-            if os.path.exists(dl_file):
-                with open(dl_file) as f:
-                    files = list([tuple(row) for row in csv.reader(f)])
-                for row in files:
-                    outputs[row] = uri
+            for row in (self.parse_cache(uri) or []):
+                outputs[row] = uri
         return outputs
+
+    def parse_cache(self, uri) -> Optional[List[Tuple[str, str, str]]]:
+        dl_file = self.rename_download(uri)
+        if os.path.exists(dl_file):
+            with open(dl_file) as f:
+                files = list([tuple(row) for row in csv.reader(f)])
+            return files
+        return None
 
     @property
     def output_files(self) -> List[Tuple[str, str, str]]:
@@ -373,11 +377,8 @@ class DownloadIIIFManifestTask(Task):
         """
         out = []
         for file in self.input_files:
-            dl_file = self.rename_download(file)
-            if os.path.exists(dl_file):
-                with open(dl_file) as f:
-                    files = list([tuple(row) for row in csv.reader(f)])
-                out.extend(files)
+            if pages := self.parse_cache(file):
+                out.extend(pages)
         return out
 
     def check(self) -> bool:
