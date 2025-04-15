@@ -353,6 +353,18 @@ class DownloadIIIFManifestTask(Task):
         return out
 
     @property
+    def output_files_map(self) -> Dict[Tuple[str, str, str], str]:
+        outputs = {}
+        for uri in self.input_files:
+            dl_file = self.rename_download(uri)
+            if os.path.exists(dl_file):
+                with open(dl_file) as f:
+                    files = list([tuple(row) for row in csv.reader(f)])
+                for row in files:
+                    outputs[row] = uri
+        return outputs
+
+    @property
     def output_files(self) -> List[Tuple[str, str, str]]:
         """ For each input manifest, outputs all pages found. Each page is provided with
         a directory name based on the manuscript
