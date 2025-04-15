@@ -13,26 +13,24 @@ import unidecode
 from xml.sax.saxutils import escape
 
 
-
 def split_batches(inputs: List[str], splits: int) -> List[List[str]]:
     """ Split a number of inputs into N splits, more or less even ones"""
     if splits <= 0:
         raise ValueError("Number of splits must be greater than zero.")
-    
+
     # Calculate the base size of each split and the number of splits that need an extra element
     base_size = len(inputs) // splits
     extra_elements = len(inputs) % splits
-    
+
     result = []
     start = 0
-    
+
     for i in range(splits):
         end = start + base_size + (1 if i < extra_elements else 0)
         result.append(inputs[start:end])
         start = end
-    
-    return result
 
+    return result
 
 
 def download(url: str, target: str, options: Optional[Dict[str, str]] = None) -> Optional[str]:
@@ -106,18 +104,34 @@ def download_iiif_manifest(url: str, target: str, options: Optional[Dict[str, st
     dirname = clean_kebab(j["label"])
     if "items" in j:
         for idx, element in enumerate(j["items"]):
-            rows.append([element["items"][0]["items"][0]["body"]["id"], dirname, f"f{idx}-"+clean_kebab(element["label"])])
+            rows.append(
+                [element["items"][0]["items"][0]["body"]["id"], dirname, f"f{idx}-" + clean_kebab(element["label"])]
+            )
     elif "sequences" in j:
         for idx, canvas in enumerate(j["sequences"][0]["canvases"]):
             elm = cleverer_manifest_parsing(canvas["images"][0])
             if elm:
-                rows.append([elm, dirname, f"f{idx}-"+clean_kebab(canvas["label"])])
+                rows.append([elm, dirname, f"f{idx}-" + clean_kebab(canvas["label"])])
 
     with open(target, 'w') as handle:
         writer = csv.writer(handle)
         writer.writerows(rows)
 
     return url
+
+
+def check_parsable(filepath):
+    """ Check that [FILEPATH] XML ALTO is parsable
+
+    :param filepath: ALTO file to check
+    :param ratio: Float (Percent) or Int (Absolute) threshold
+    :return: True if the file has above N lines, False if it needs to be OCRized
+    """
+    try:
+        ET.parse(filepath)
+        return True
+    except Exception:
+        return False
 
 
 def check_content(filepath, ratio: Union[int, float] = 1):
@@ -134,10 +148,14 @@ def check_content(filepath, ratio: Union[int, float] = 1):
     except Exception:
         return False
     data = []
+    if len(xml.xpath("//a:TextLine", namespaces={"a": "http://www.loc.gov/standards/alto/ns-v4#"})) == 0:
+        # Document has no lines.
+        return True
+
     for content in xml.xpath("//a:String/@CONTENT", namespaces={"a": "http://www.loc.gov/standards/alto/ns-v4#"}):
         data.append(int(bool(str(content))))
-    if len(data) == 0:  # The document has no lines
-        return True
+    if len(data) == 0:  # The document has no line processed
+        return False
     elif isinstance(ratio, int):
         return sum(data) >= ratio
     elif isinstance(ratio, float):
@@ -192,7 +210,7 @@ def batchify_textfile(filepath: str, batch_size: int = 100):
     """
     with open(filepath) as f:
         text = f.read().split()
-    return [text[n:n+batch_size] for n in range(0, len(text), batch_size)]
+    return [text[n:n + batch_size] for n in range(0, len(text), batch_size)]
 
 
 def change_ext(filepath: str, new_ext: str) -> str:
@@ -276,7 +294,7 @@ def pdf_extract(pdf_path: str, start_on: int = 0, scheme_string: Optional[str | 
     out = []
     for i in range(start_on, n_pages):
         page = doc.load_page(i)
-        pix = page.get_pixmap(matrix=fitz.Matrix(300 / 72, 300 / 72)) # scaling dpi
+        pix = page.get_pixmap(matrix=fitz.Matrix(300 / 72, 300 / 72))  # scaling dpi
         local_targ = scheme_string.format(i)
         pix.save(local_targ)
         out.append(str(local_targ))
@@ -336,10 +354,12 @@ def simple_args_kwargs_wrapper(function, **kwargs):
     >>> wrapped_sort([1, 2, 3])
     [3, 2, 1]
     """
+
     def wrapped(args):
         if isinstance(args, tuple):
             return function(*args, **kwargs)
         return function(args, **kwargs)
+
     return wrapped
 
 
@@ -379,7 +399,7 @@ def cleverer_manifest_parsing(image: Dict[str, Any], head_check: bool = False) -
                             return image_url + '.' + image_format
                         return image['resource']['@id']
                     return image['resource']['@id']
-            return image_url+".jpg"
+            return image_url + ".jpg"
         return image['resource']['@id']
     return None
 

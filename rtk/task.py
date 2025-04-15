@@ -18,7 +18,6 @@ import lxml.etree as ET
 from rtk import utils
 from rtk import mets_utils
 
-
 InputType = Union[str, Tuple[str, str]]
 InputListType = Union[List[str], List[Tuple[str, str]]]
 DownstreamCheck = Optional[Callable[[InputType], bool]]
@@ -76,6 +75,7 @@ class DownloadIIIFImageTask(Task):
 
     :param input_list: List of tuples, where the first value is a URI to download an image, and the second is a folder
     """
+
     def __init__(
             self,
             input_files: List[Tuple[str, str, str]],
@@ -114,6 +114,7 @@ class DownloadIIIFImageTask(Task):
             if content_check is not None:
                 return content_check(filename)
             return True
+
         return check
 
     @property
@@ -147,8 +148,8 @@ class DownloadIIIFImageTask(Task):
             with ThreadPoolExecutor(max_workers=self.workers) as executor:
                 bar = tqdm.tqdm(total=len(inputs), desc=_sbmsg("Downloading..."))
                 for file in executor.map(
-                    utils.simple_args_kwargs_wrapper(utils.download_iiif_image, options=options),
-                    [(file[0], self.rename_download(file)) for file in inputs]
+                        utils.simple_args_kwargs_wrapper(utils.download_iiif_image, options=options),
+                        [(file[0], self.rename_download(file)) for file in inputs]
                 ):  # urls=[list of url]
                     bar.update(1)
                     if file:
@@ -171,6 +172,7 @@ class ExtractPDFTask(Task):
     :param output_dir: Path to the directory containing the output of the PDF extraction
     :param start_on: Page to start the extraction from. Some PDF have added prefaces, use this for ignoring them.
     """
+
     def __init__(
             self,
             *args,
@@ -321,6 +323,7 @@ class DownloadIIIFManifestTask(Task):
     :param manifest_as_directory: Boolean that uses the manifest filename (can be a function) as a directory container
 
     """
+
     def __init__(
             self,
             *args,
@@ -381,8 +384,8 @@ class DownloadIIIFManifestTask(Task):
         with ThreadPoolExecutor(max_workers=self.workers) as executor:
             bar = tqdm.tqdm(total=len(inputs), desc=_sbmsg("Downloading..."))
             for file in executor.map(
-                utils.simple_args_kwargs_wrapper(utils.download_iiif_manifest, options=self._custom_headers),
-                [(file, self.rename_download(file)) for file in inputs]):  # urls=[list of url]
+                    utils.simple_args_kwargs_wrapper(utils.download_iiif_manifest, options=self._custom_headers),
+                    [(file, self.rename_download(file)) for file in inputs]):  # urls=[list of url]
                 bar.update(1)
                 if file:  # Ensure we downloaded the file
                     done.append(file)
@@ -394,6 +397,7 @@ class KrakenLikeCommand(Task):
 
     KrakenLikeCommand expect `$out` in its command
     """
+
     def __init__(
             self,
             *args,
@@ -446,6 +450,7 @@ class KrakenLikeCommand(Task):
 
     def _process(self, inputs: InputListType) -> bool:
         """ Use parallel """
+
         def work(input_list: List[str], pbar) -> List[str]:
             cmd = []
             for x in self.command:
@@ -473,7 +478,7 @@ class KrakenLikeCommand(Task):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 env=my_env,
-                preexec_fn=lambda: signal.alarm(len(input_list)*self.max_time_per_op),
+                preexec_fn=lambda: signal.alarm(len(input_list) * self.max_time_per_op),
             )
 
             try:
@@ -486,7 +491,7 @@ class KrakenLikeCommand(Task):
                         break
 
                 return_code = proc.wait()
-             
+
                 if proc.returncode == 1:
                     print("Error detected in subprocess...")
                     print(proc.stdout.read())
@@ -516,7 +521,7 @@ class KrakenLikeCommand(Task):
         bar.close()
 
     def input_format(self, inp: str) -> List[str]:
-        return ["-i",  inp, self.rename(inp)]
+        return ["-i", inp, self.rename(inp)]
 
 
 class YALTAiCommand(KrakenLikeCommand):
@@ -534,6 +539,7 @@ class YALTAiCommand(KrakenLikeCommand):
     :param raise_on_error: Raise an exception on error
     :type raise_on_error: bool
     """
+
     def __init__(
             self,
             *args,
@@ -578,6 +584,7 @@ class KrakenRecognizerCommand(KrakenLikeCommand):
 
     KrakenLikeCommand expect `$out` in its command
     """
+
     def __init__(
             self,
             *args,
@@ -585,6 +592,7 @@ class KrakenRecognizerCommand(KrakenLikeCommand):
             device: str = "cpu",
             raise_on_error: bool = False,
             input_format: Optional[str] = "alto",
+            template: Optional[str] = None,
             check_content: bool = False,
             binary: str = "kraken",  # Environment can be env/bin/kraken
             **kwargs):
@@ -593,9 +601,16 @@ class KrakenRecognizerCommand(KrakenLikeCommand):
         options = ""
         if raise_on_error:
             options += " --raise-on-error "
+
+        if template:
+            options += f" --template {template} "
+        else:
+            options += " --alto "
+
+        options += " --format-type xml "
         super(KrakenRecognizerCommand, self).__init__(
             *args,
-            command=f"{binary} {options} --device {device} -f xml --{input_format} R ocr -m {model}".split(" "),
+            command=f"{binary} {options} --device {device} --{input_format} R ocr -m {model}".split(" "),
             allow_failure=not raise_on_error,
             output_format="xml",
             check_content=check_content,
@@ -613,6 +628,7 @@ class KrakenSegAndRecCommand(KrakenLikeCommand):
 
     KrakenLikeCommand expect `$out` in its command
     """
+
     def __init__(
             self,
             *args,
@@ -628,14 +644,15 @@ class KrakenSegAndRecCommand(KrakenLikeCommand):
             raise ValueError(f"Unknown Kraken model `{htr_model}`")
         if not os.path.exists(seg_model):
             raise ValueError(f"Unknown Kraken model `{seg_model}`")
-        
+
         options = ""
         if raise_on_error:
             options += " --raise-on-error "
         seg_model = f"-i {seg_model}" if seg_model else "-bl"
         super(KrakenSegAndRecCommand, self).__init__(
             *args,
-            command=f"{binary} {options} --device {device} -f image --{input_format} R segment {seg_model} ocr -m {htr_model}".split(" "),
+            command=f"{binary} {options} --device {device} -f image --{input_format} R segment {seg_model} ocr -m {htr_model}".split(
+                " "),
             allow_failure=not raise_on_error,
             output_format="xml",
             check_content=check_content,
@@ -684,6 +701,7 @@ class ClearFileCommand(Task):
     """ Remove files when they have been processed, useful for JPG
 
     """
+
     @property
     def output_files(self) -> List[InputType]:
         return []
@@ -709,6 +727,7 @@ class ClearFileCommand(Task):
 class ExtractZoneAltoCommand(Task):
     """ This command takes an ALTO input and transforms it into a .txt file, only keeping the provided Zones.
     """
+
     def __init__(
             self,
             *args,
@@ -766,6 +785,7 @@ class ExtractZoneAltoCommand(Task):
 class CleanUpAltoGlyphs(Task):
     """ This command takes an ALTO input and removes the glyph informations
     """
+
     def __init__(
             self,
             *args,
