@@ -608,6 +608,7 @@ class KrakenRecognizerCommand(KrakenLikeCommand):
             template: Optional[str] = None,
             check_content: bool = False,
             binary: str = "kraken",  # Environment can be env/bin/kraken
+            other_options: str = " ",
             **kwargs):
         if not os.path.exists(model):
             raise ValueError(f"Unknown Kraken model `{model}`")
@@ -620,7 +621,7 @@ class KrakenRecognizerCommand(KrakenLikeCommand):
         else:
             options += " --alto "
 
-        options += " --format-type xml "
+        options += " --format-type xml " + other_options
         super(KrakenRecognizerCommand, self).__init__(
             *args,
             command=f"{binary} {options} --device {device} --{input_format} R ocr -m {model}".split(" "),
