@@ -66,9 +66,11 @@ def download_iiif_image(url: str, target: str, options: Optional[Dict[str, Union
     :return: The path where the file was saved or None if the download failed.
     """
     if options.get("max_height"):
-        url = url.replace("/full/full/", f"/full/,{options['max_height']}/")
+        url = url.replace("/full/full/", f"/full/,{options['max_height']}/").replace(
+            "/full/max/", f"/full/,{options['max_height']}/")
     elif options.get("max_width"):
-        url = url.replace("/full/full/", f"/full/{options['max_width']},/")
+        url = url.replace("/full/full/", f"/full/{options['max_width']},/").replace(
+            "/full/max/", f"/full/{options['max_width']},/")
     return download(
         url,
         target,
