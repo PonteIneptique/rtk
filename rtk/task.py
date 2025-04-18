@@ -434,6 +434,7 @@ class KrakenLikeCommand(Task):
             desc: Optional[str] = "kraken-like",
             allow_failure: bool = True,
             check_content: bool = False,
+            custom_check_function: Optional[Callable[[str], bool]] = None,
             max_time_per_op: int = 60,  # Seconds
             **kwargs):
         super(KrakenLikeCommand, self).__init__(*args, **kwargs)
@@ -441,6 +442,7 @@ class KrakenLikeCommand(Task):
         self._output_format: str = output_format
         self.check_content: bool = check_content
         self.allow_failure: bool = allow_failure
+        self.check_function: Callable[[str], bool] = custom_check_function if custom_check_function is not None else utils.check_content
         self._output_files: List[str] = []
         self.max_time_per_op: int = max_time_per_op
         self.desc: str = desc
@@ -470,7 +472,7 @@ class KrakenLikeCommand(Task):
         ):
             out = self.rename(inp)
             if os.path.exists(out):
-                self._checked_files[inp] = not self.check_content or utils.check_content(out)
+                self._checked_files[inp] = not self.check_content or self.check_function(out)
             else:
                 self._checked_files[inp] = False
                 all_done = False
