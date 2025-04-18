@@ -84,6 +84,9 @@ class DownloadIIIFImageTask(Task):
             downstream_check: DownstreamCheck = None,
             max_height: Optional[int] = None,
             max_width: Optional[int] = None,
+            retries: int = 1,
+            retries_no_options: int = 1,
+            time_between_retries: int = 30,
             custom_headers: Optional[Dict[str, str]] = None,
             **kwargs):
         super(DownloadIIIFImageTask, self).__init__(input_files=input_files, *args, **kwargs)
@@ -92,6 +95,9 @@ class DownloadIIIFImageTask(Task):
         self._output_files = []
         self._max_h: int = max_height
         self._max_w: int = max_width
+        self.retries: int = retries
+        self.retries_no_options: int = retries_no_options
+        self.time_between_retries: int = time_between_retries
         self._custom_headers: Dict[str, str] = custom_headers or {}
         if self._max_h and self._max_w:
             raise Exception("Only one parameter max height / max width is accepted")
@@ -148,7 +154,10 @@ class DownloadIIIFImageTask(Task):
             with ThreadPoolExecutor(max_workers=self.workers) as executor:
                 bar = tqdm.tqdm(total=len(inputs), desc=_sbmsg("Downloading..."))
                 for file in executor.map(
-                        utils.simple_args_kwargs_wrapper(utils.download_iiif_image, options=options),
+                        utils.simple_args_kwargs_wrapper(utils.download_iiif_image, options=options,
+                                                         retries=self.retries,
+                                                         retries_no_options=self.retries_no_options,
+                                                         time_between_retries=self.time_between_retries),
                         [(file[0], self.rename_download(file)) for file in inputs]
                 ):  # urls=[list of url]
                     bar.update(1)

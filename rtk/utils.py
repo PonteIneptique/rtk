@@ -3,6 +3,7 @@ from typing import Tuple, List, Optional, Dict, Union, Any, Callable
 import os
 import hashlib
 import csv
+import time
 from pathlib import Path
 # Non std lib
 import fitz  # PyMuPDF
@@ -33,7 +34,11 @@ def split_batches(inputs: List[str], splits: int) -> List[List[str]]:
     return result
 
 
-def download(url: str, target: str, options: Optional[Dict[str, str]] = None) -> Optional[str]:
+def download(
+        url: str,
+        target: str,
+        options: Optional[Dict[str, str]] = None,
+        with_raise: bool = False) -> Optional[str]:
     """ Download the element at [URL] and saves it at [TARGET] using binary writing. [OPTIONS] are fed to the headers
 
     :param url: A url
@@ -43,7 +48,8 @@ def download(url: str, target: str, options: Optional[Dict[str, str]] = None) ->
     """
     headers = {}
     headers.update(options or {})
-    os.makedirs(os.path.dirname(target), exist_ok=True)
+    if os.path.dirname(target).strip():
+        os.makedirs(os.path.dirname(target), exist_ok=True)
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status()
@@ -51,11 +57,20 @@ def download(url: str, target: str, options: Optional[Dict[str, str]] = None) ->
             handle.write(response.content)
         return target
     except Exception as E:
+        if with_raise:
+            raise E
         print(E)
         return None
 
 
-def download_iiif_image(url: str, target: str, options: Optional[Dict[str, Union[str, int]]] = None) -> str:
+def download_iiif_image(
+        url: str,
+        target: str,
+        options: Optional[Dict[str, Union[str, int]]] = None,
+        retries: int = 1,
+        retries_no_options: int = 1,
+        time_between_retries: int = 30,
+) -> str:
     """ Download the IIIF image at [URL] and saves it at [TARGET] using binary writing. [OPTIONS] are mostly fed to the
         headers except for `max_width` and `max_height` keys which are used for limiting the image size (instead of
         full size image). You cannot use max_width and max_height at the same time.
@@ -64,22 +79,46 @@ def download_iiif_image(url: str, target: str, options: Optional[Dict[str, Union
     :param target: A destination path
     :param options: A key-value dict for the request headers
     :return: The path where the file was saved or None if the download failed.
+
     """
+    orig_url = ""+url
     if options.get("max_height"):
         url = url.replace("/full/full/", f"/full/,{options['max_height']}/").replace(
             "/full/max/", f"/full/,{options['max_height']}/")
     elif options.get("max_width"):
         url = url.replace("/full/full/", f"/full/{options['max_width']},/").replace(
             "/full/max/", f"/full/{options['max_width']},/")
-    return download(
-        url,
-        target,
-        {
-            key: val
-            for key, val in options.items()
-            if key not in {"max_width", "max_height"}
-        }
-    )
+
+    attempt = 0
+    while attempt < retries:
+        try:
+            return download(
+                url, target,
+                {key: val for key, val in options.items() if key not in {"max_width", "max_height"}},
+                with_raise=True
+            )
+        except Exception as E:
+            attempt += 1
+            if attempt >= retries and not retries_no_options:
+                raise E
+            elif attempt < retries:
+                time.sleep(time_between_retries)
+    if not retries_no_options:
+        raise Exception("There should have been something to return here")
+    attempt = 0
+    while attempt < retries_no_options:
+        try:
+            return download(
+                orig_url, target,
+                {key: val for key, val in options.items() if key not in {"max_width", "max_height"}},
+                with_raise=True
+            )
+        except Exception as E:
+            attempt += 1
+            if attempt >= retries_no_options:
+                raise E
+            time.sleep(time_between_retries)
+
 
 
 def download_iiif_manifest(url: str, target: str, options: Optional[Dict[str, str]] = None) -> Optional[str]:
