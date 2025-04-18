@@ -115,12 +115,6 @@ class DownloadIIIFImageTask(Task):
     @staticmethod
     def check_downstream_task(extension: str = ".xml", content_check: DownstreamCheck = None) -> Callable:
         def check(inp):
-            try:
-                size = Image.open(DownloadIIIFImageTask.rename_download(inp)).size
-            except Exception as E:
-                print(f"Invalid file {DownloadIIIFImageTask.rename_download(inp)}")
-                print(E)
-                return False
             filename = os.path.splitext(DownloadIIIFImageTask.rename_download(inp))[0] + extension
             if not os.path.exists(filename):
                 return False
@@ -139,7 +133,13 @@ class DownloadIIIFImageTask(Task):
         for file in tqdm.tqdm(self.input_files, desc=_sbmsg("Checking prior processed documents")):
             out_file = self.rename_download(file)
             if os.path.exists(out_file):
-                self._checked_files[file] = True
+                try:
+                    _ = Image.open(out_file).size
+                    self._checked_files[file] = True
+                except Exception as E:
+                    print(f"Invalid file {out_file}")
+                    print(E)
+                    self._checked_files[file] = False
                 self._output_files.append(out_file)
             elif self.downstream_check is not None:  # Additional downstream check
                 self._checked_files[file] = self.downstream_check(file)
