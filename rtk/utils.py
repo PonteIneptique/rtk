@@ -100,7 +100,8 @@ def download_iiif_image(
         except Exception as E:
             attempt += 1
             if attempt >= retries and not retries_no_options:
-                raise E
+                print(E)
+                return None
             elif attempt < retries:
                 time.sleep(time_between_retries)
     if not retries_no_options:
@@ -116,7 +117,8 @@ def download_iiif_image(
         except Exception as E:
             attempt += 1
             if attempt >= retries_no_options:
-                raise E
+                print(E)
+                return None
             time.sleep(time_between_retries)
 
 

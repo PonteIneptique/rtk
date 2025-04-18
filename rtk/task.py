@@ -4,6 +4,7 @@ import subprocess
 import signal
 import csv
 import re
+from PIL import Image
 from functools import partial
 from typing import Dict, Union, Tuple, List, Optional, Callable, Literal
 from concurrent.futures import ThreadPoolExecutor
@@ -114,6 +115,12 @@ class DownloadIIIFImageTask(Task):
     @staticmethod
     def check_downstream_task(extension: str = ".xml", content_check: DownstreamCheck = None) -> Callable:
         def check(inp):
+            try:
+                size = Image.open(DownloadIIIFImageTask.rename_download(inp)).size
+            except Exception as E:
+                print(f"Invalid file {DownloadIIIFImageTask.rename_download(inp)}")
+                print(E)
+                return False
             filename = os.path.splitext(DownloadIIIFImageTask.rename_download(inp))[0] + extension
             if not os.path.exists(filename):
                 return False
@@ -503,8 +510,10 @@ class KrakenLikeCommand(Task):
                 preexec_fn=lambda: signal.alarm(len(input_list) * self.max_time_per_op),
             )
 
+            logs = []
             try:
                 for line in iter(proc.stdout.readline, ""):
+                    logs.append(line.strip())
                     for element in self.pbar_parsing(line):
                         out.append(element)
                         pbar.update(1)
@@ -514,7 +523,7 @@ class KrakenLikeCommand(Task):
 
                 return_code = proc.wait()
 
-                if proc.returncode == 1:
+                if return_code == 1 or proc.returncode == 1:
                     print("Error detected in subprocess...")
                     print(proc.stdout.read())
                     print(proc.stderr.read())
@@ -523,11 +532,17 @@ class KrakenLikeCommand(Task):
                         raise InterruptedError
             except subprocess.TimeoutExpired as te:
                 try:
+                    print("\n".join(logs))
                     print(proc.stderr.read())
+                    print(proc.stdout.read())
                     proc.kill()
                 except Exception as E:
                     return out
                 return out
+            except InterruptedError:
+                print("\n".join(logs))
+            if out == []:
+                print("\n".join(logs))
             return out
 
         # Group inputs into the number of workers
