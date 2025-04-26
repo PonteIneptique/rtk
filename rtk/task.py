@@ -548,11 +548,14 @@ class KrakenLikeCommand(Task):
             return out
 
         # Group inputs into the number of workers
+        inputs = list(set(inputs))
         total_texts = len(inputs)
         inputs = utils.split_batches(inputs, self.workers)
 
-        tp = ThreadPoolExecutor(len([batches for batches in inputs if len(batches)]))
+        inputs = [batches for batches in inputs if len(batches)]
+        tp = ThreadPoolExecutor(len(inputs))
         bar = tqdm.tqdm(desc=_sbmsg(f"Processing {self.desc} command"), total=total_texts)
+
         for gen in tp.map(work, inputs, repeat(bar)):
             for elem in gen:
                 if isinstance(elem, str):
@@ -651,11 +654,11 @@ class KrakenRecognizerCommand(KrakenLikeCommand):
         super(KrakenRecognizerCommand, self).__init__(
             *args,
             command=f"{binary} {options} --device {device} --{input_format} R ocr -m {model}".split(" "),
-            allow_failure=not raise_on_error,
+            allow_failure=kwargs.get("allow_failure", not raise_on_error),
             output_format="xml",
             check_content=check_content,
             desc="Kraken recognizer",
-            **kwargs
+            **{k: v for k, v in kwargs.items() if k != "allow_failure"}
         )
 
     @staticmethod

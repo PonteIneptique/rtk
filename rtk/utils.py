@@ -5,33 +5,37 @@ import hashlib
 import csv
 import time
 from pathlib import Path
+from itertools import islice
 # Non std lib
 import fitz  # PyMuPDF
 import requests
 import lxml.etree as ET
 import cases
 import unidecode
-from xml.sax.saxutils import escape
 
 
 def split_batches(inputs: List[str], splits: int) -> List[List[str]]:
-    """ Split a number of inputs into N splits, more or less even ones"""
+    """ Split a number of inputs into N splits, more or less even ones
+
+
+    >>> split_batches(list(range(1,9)), 4) == [[1, 2], [3, 4], [5, 6], [7, 8]]
+    True
+    >>> split_batches(list(range(1,10)), 4) == [[1, 2], [3, 4], [5, 6], [7, 8, 9]]
+    True
+    >>> split_batches(list(range(1,5)), 5) == [[1], [2], [3], [4]]
+    True
+
+    """
     if splits <= 0:
         raise ValueError("Number of splits must be greater than zero.")
 
     # Calculate the base size of each split and the number of splits that need an extra element
-    base_size = len(inputs) // splits
-    extra_elements = len(inputs) % splits
+    length = len(inputs)
+    sizes = [(length + i) // splits for i in range(splits)]  # distribute remainder
+    it = iter(inputs)
+    batches = [list(islice(it, size)) for size in sizes]
+    return [b for b in batches if b]
 
-    result = []
-    start = 0
-
-    for i in range(splits):
-        end = start + base_size + (1 if i < extra_elements else 0)
-        result.append(inputs[start:end])
-        start = end
-
-    return result
 
 
 def download(
