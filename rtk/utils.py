@@ -2,6 +2,7 @@
 from typing import Tuple, List, Optional, Dict, Union, Any, Callable
 import os
 import hashlib
+import json
 import csv
 import time
 from pathlib import Path
@@ -274,6 +275,22 @@ def batchify_textfile(filepath: str, batch_size: int = 100):
     return [text[n:n + batch_size] for n in range(0, len(text), batch_size)]
 
 
+def batchify_jsonfile(filepath: str, batch_size: int = 100):
+    """ Reads a JSON file containing manifest URLs and internal identifiers, and batch them
+
+    :param filepath: Path to the JSON file
+    :param batch_size: Size of each batch
+    :return: Tuple containing the manifest identifiers dictionary and the list of batches
+    """
+    with open(filepath, 'r') as file:
+        manifest_identifiers = json.load(file)
+
+    manifest_urls = list(manifest_identifiers.keys())
+    batches = [manifest_urls[n:n + batch_size] for n in range(0, len(manifest_urls), batch_size)]
+
+    return manifest_identifiers, batches
+
+
 def change_ext(filepath: str, new_ext: str) -> str:
     return os.path.splitext(filepath)[0] + f".{new_ext}"
 
@@ -465,5 +482,9 @@ def cleverer_manifest_parsing(image: Dict[str, Any], head_check: bool = False) -
     return None
 
 
-def clean_kebab(string: str) -> str:
-    return cases.to_kebab(unidecode.unidecode(string))
+def clean_kebab(string: str, max_length: int = 100) -> str:
+    kebab_string = cases.to_kebab(unidecode.unidecode(string))
+    # trunc
+    if len(kebab_string) > max_length:
+        kebab_string = kebab_string[:max_length].rsplit('-', 1)[0]  # trunc last dash
+    return kebab_string
