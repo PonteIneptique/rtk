@@ -88,6 +88,7 @@ class DownloadIIIFImageTask(Task):
             retries: int = 1,
             retries_no_options: int = 1,
             time_between_retries: int = 30,
+            timeout: int = 180,  # 3 minutes thread hanging is the max
             custom_headers: Optional[Dict[str, str]] = None,
             **kwargs):
         super(DownloadIIIFImageTask, self).__init__(input_files=input_files, *args, **kwargs)
@@ -99,6 +100,7 @@ class DownloadIIIFImageTask(Task):
         self.retries: int = retries
         self.retries_no_options: int = retries_no_options
         self.time_between_retries: int = time_between_retries
+        self.timeout: int = (timeout + time_between_retries) * (retries_no_options+1)
         self._custom_headers: Dict[str, str] = custom_headers or {}
         if self._max_h and self._max_w:
             raise Exception("Only one parameter max height / max width is accepted")
@@ -165,13 +167,16 @@ class DownloadIIIFImageTask(Task):
                                                          retries=self.retries,
                                                          retries_no_options=self.retries_no_options,
                                                          time_between_retries=self.time_between_retries),
-                        [(file[0], self.rename_download(file)) for file in inputs]
+                        [(file[0], self.rename_download(file)) for file in inputs],
+                        timeout=self.timeout
                 ):  # urls=[list of url]
                     bar.update(1)
                     if file:
                         done.append(file)
-        except KeyboardInterrupt:
+        except (TimeoutError, KeyboardInterrupt) as E:
             bar.close()
+            if isinstance(E, TimeoutError):
+                print("Timeout raised")
             print("Download manually interrupted, removing partial JPGs")
             for url, directory, fname in inputs:
                 if url not in done:
