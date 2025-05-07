@@ -499,6 +499,11 @@ class KrakenLikeCommand(Task):
                         for element in mapped_list
                     ])
 
+            def check_logs(out, logs):
+                print("INPUT SIZE DIFF WITH OUTPUT SIZE")
+                if len(input_list) != len(out):
+                    print(logs)
+
             # This allows to control the number of threads used in a subprocess
             my_env = os.environ.copy()
             my_env["OMP_NUM_THREADS"] = "1"
@@ -537,6 +542,8 @@ class KrakenLikeCommand(Task):
                     print("Stopped process")
                     if not self.allow_failure:
                         raise InterruptedError
+                else:
+                    check_logs(out, logs)
             except subprocess.TimeoutExpired as te:
                 try:
                     print("\n".join(logs))
@@ -548,8 +555,10 @@ class KrakenLikeCommand(Task):
                 return out
             except InterruptedError:
                 print("\n".join(logs))
+
             if out == []:
                 print("\n".join(logs))
+            check_logs(out, logs)
             return out
 
         # Group inputs into the number of workers
