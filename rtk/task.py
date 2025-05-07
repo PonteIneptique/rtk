@@ -500,8 +500,8 @@ class KrakenLikeCommand(Task):
                     ])
 
             def check_logs(out, logs):
-                print("INPUT SIZE DIFF WITH OUTPUT SIZE")
                 if len(input_list) != len(out):
+                    print("INPUT SIZE DIFF WITH OUTPUT SIZE")
                     print(logs)
 
             # This allows to control the number of threads used in a subprocess
