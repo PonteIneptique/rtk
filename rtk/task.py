@@ -7,7 +7,7 @@ import re
 from PIL import Image
 from functools import partial
 from typing import Dict, Union, Tuple, List, Optional, Callable, Literal
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 from xml.sax import saxutils
 from collections import defaultdict
 from itertools import repeat
@@ -160,19 +160,24 @@ class DownloadIIIFImageTask(Task):
         if self._max_w:
             options["max_width"] = self._max_w
         try:
-            with ThreadPoolExecutor(max_workers=self.workers) as executor:
+            download_function = partial(utils.download_iiif_image,
+                options=options,
+                retries=self.retries,
+                retries_no_options=self.retries_no_options,
+                time_between_retries=self.time_between_retries
+            )
+            with ProcessPoolExecutor(max_workers=self.workers) as pool:
                 bar = tqdm.tqdm(total=len(inputs), desc=_sbmsg("Downloading..."))
-                for file in executor.map(
-                        utils.simple_args_kwargs_wrapper(utils.download_iiif_image, options=options,
-                                                         retries=self.retries,
-                                                         retries_no_options=self.retries_no_options,
-                                                         time_between_retries=self.time_between_retries),
-                        [(file[0], self.rename_download(file)) for file in inputs],
-                        timeout=self.timeout
-                ):  # urls=[list of url]
-                    bar.update(1)
-                    if file:
-                        done.append(file)
+                futures = {pool.submit(download_function, file[0], self.rename_download(file)) for file in inputs}
+                for future in as_completed(futures):
+                    try:
+                        result = future.result(timeout=self.timeout * 3)
+                        if isinstance(result, str):
+                            done.append(result)
+                            bar.update(1)
+                    except Exception as e:
+                        print(f"Task failed: {e}")
+                bar.close()
         except (TimeoutError, KeyboardInterrupt) as E:
             bar.close()
             if isinstance(E, TimeoutError):
