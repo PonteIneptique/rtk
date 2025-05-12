@@ -6,3 +6,4 @@ tqdm==4.64.1
 pycases
 unidecode
 PyMuPDF>=1.23.5
+pillow

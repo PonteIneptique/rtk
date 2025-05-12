@@ -184,10 +184,9 @@ class DownloadIIIFImageTask(Task):
                 print("Timeout raised")
             print("Download manually interrupted, removing partial JPGs")
             for url, directory, fname in inputs:
-                if url not in done:
-                    tgt = self.rename_download((url, directory, fname))
-                    if os.path.exists(tgt):
-                        os.remove(tgt)
+                tgt = self.rename_download((url, directory, fname))
+                if tgt not in done and os.path.exists(tgt):
+                    os.remove(tgt)
         self._output_files.extend(done)
         return True
 

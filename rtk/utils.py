@@ -12,6 +12,7 @@ import requests
 import lxml.etree as ET
 import cases
 import unidecode
+import urllib.request
 
 
 def split_batches(inputs: List[str], splits: int) -> List[List[str]]:
@@ -50,22 +51,22 @@ def download(
     :param options: A key-value dict for the request headers
     :return: The path where the file was saved or None if the download failed.
     """
-    headers = {}
-    headers.update(options or {})
+    headers = options or {}
+    req = urllib.request.Request(url, headers=headers)
+
     if os.path.dirname(target).strip():
         os.makedirs(os.path.dirname(target), exist_ok=True)
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        with open(target, 'wb') as handle:
-            handle.write(response.content)
-        return target
-    except Exception as E:
-        if with_raise:
-            raise E
-        print(E)
-        return None
 
+    try:
+        with urllib.request.urlopen(req) as response:
+            with open(target, 'wb') as out_file:
+                out_file.write(response.read())
+        return target
+    except Exception as e:
+        if with_raise:
+            raise e
+        print(e)
+        return None
 
 def download_iiif_image(
         url: str,
