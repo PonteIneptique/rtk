@@ -12,7 +12,10 @@ import requests
 import lxml.etree as ET
 import cases
 import unidecode
-import urllib.request
+
+
+def clean_kebab(string: str) -> str:
+    return cases.to_kebab(unidecode.unidecode(string))
 
 
 def split_batches(inputs: List[str], splits: int) -> List[List[str]]:
@@ -51,22 +54,22 @@ def download(
     :param options: A key-value dict for the request headers
     :return: The path where the file was saved or None if the download failed.
     """
-    headers = options or {}
-    req = urllib.request.Request(url, headers=headers)
-
+    headers = {}
+    headers.update(options or {})
     if os.path.dirname(target).strip():
         os.makedirs(os.path.dirname(target), exist_ok=True)
-
     try:
-        with urllib.request.urlopen(req) as response:
-            with open(target, 'wb') as out_file:
-                out_file.write(response.read())
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        with open(target, 'wb') as handle:
+            handle.write(response.content)
         return target
-    except Exception as e:
+    except Exception as E:
         if with_raise:
-            raise e
-        print(e)
+            raise E
+        print(E)
         return None
+
 
 def download_iiif_image(
         url: str,
@@ -127,8 +130,7 @@ def download_iiif_image(
             time.sleep(time_between_retries)
 
 
-
-def download_iiif_manifest(url: str, target: str, options: Optional[Dict[str, str]] = None) -> Optional[str]:
+def download_iiif_manifest(url: str, target: str, options: Optional[Dict[str, str]] = None, naming_function: Callable[[str], str] = clean_kebab) -> Optional[str]:
     """ Download the element at [URL] and saves it at [TARGET] using plain-text writing. [OPTIONS] are fed to
         the headers. In case of failure, print the exception and return None. The manifest is read and the data is
         compiled as a CSV
@@ -162,7 +164,7 @@ def download_iiif_manifest(url: str, target: str, options: Optional[Dict[str, st
                     return obj["label"][key][0]
 
     if dirname := _get_label(j):
-        dirname = clean_kebab(dirname)
+        dirname = naming_function(dirname)
     else:
         raise ValueError(f"No label in {url}")
     print()
