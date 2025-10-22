@@ -14,7 +14,7 @@ import cases
 import unidecode
 
 
-def clean_kebab(string: str) -> str:
+def clean_kebab(string: str, fallback: Optional[Dict] = None) -> str:
     return cases.to_kebab(unidecode.unidecode(string))
 
 
@@ -164,7 +164,7 @@ def download_iiif_manifest(url: str, target: str, options: Optional[Dict[str, st
                     return obj["label"][key][0]
 
     if dirname := _get_label(j):
-        dirname = naming_function(dirname)
+        dirname = naming_function(dirname, fallback=j)
     else:
         raise ValueError(f"No label in {url}")
     print()
