@@ -145,6 +145,11 @@ def download_iiif_manifest(url: str, target: str, options: Optional[Dict[str, st
     headers.update(options or {})
     try:
         response = requests.get(url, headers=headers)
+        if response.status_code == 429:
+            time = 60 * random.randint(1, 10)
+            print(f"Waiting for {time/60} following a 429 code.")
+            time.sleep(time)
+            return download_iiif_manifest(url, target, options, naming_function)
         response.raise_for_status()
         j = response.json()
     except Exception as E:
