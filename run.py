@@ -75,7 +75,8 @@ for batch in batches:
     dl = DownloadIIIFManifestTask(
         batch,
         output_directory="output",
-        naming_function=lambda x: kebab(x), multiprocess=10
+        naming_function=lambda x: kebab(x), multiprocess=10,
+        custom_headers={'User-Agent': 'curl/8.0'}
     )
     dl.process()
 
@@ -85,7 +86,8 @@ for batch in batches:
         dl.output_files,
         max_height=2500,
         multiprocess=4,
-        downstream_check=DownloadIIIFImageTask.check_downstream_task("xml", utils.check_content)
+        downstream_check=DownloadIIIFImageTask.check_downstream_task("xml", utils.check_content),
+        custom_headers={'User-Agent': 'curl/8.0'}
     )
     dl.process()
 

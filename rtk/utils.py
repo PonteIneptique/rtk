@@ -12,6 +12,9 @@ import lxml.etree as ET
 import cases
 import unidecode
 from xml.sax.saxutils import escape
+import time
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 
 
@@ -35,10 +38,8 @@ def split_batches(inputs: List[str], splits: int) -> List[List[str]]:
     return result
 
 
-
 def download(url: str, target: str, options: Optional[Dict[str, str]] = None) -> Optional[str]:
     """ Download the element at [URL] and saves it at [TARGET] using binary writing. [OPTIONS] are fed to the headers
-
     :param url: A url
     :param target: A destination path
     :param options: A key-value dict for the request headers
@@ -46,15 +47,29 @@ def download(url: str, target: str, options: Optional[Dict[str, str]] = None) ->
     """
     headers = {}
     headers.update(options or {})
+
     os.makedirs(os.path.dirname(target), exist_ok=True)
+
+    session = requests.Session()
+    retry_strategy = Retry(
+        total=5,
+        backoff_factor=2,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["GET"],
+        raise_on_status=False
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+
     try:
-        response = requests.get(url, headers=headers)
+        response = session.get(url, headers=headers, timeout=30)
         response.raise_for_status()
         with open(target, 'wb') as handle:
             handle.write(response.content)
         return target
     except Exception as E:
-        print(E)
+        print(f"Error downloading {url}: {E}")
         return None
 
 
